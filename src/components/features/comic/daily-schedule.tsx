@@ -1,0 +1,101 @@
+"use client";
+
+import React, { useState, useMemo } from "react";
+import { ComicCard } from "./comic-card";
+import { DAYS, DAY_LABELS } from "@/lib/constants";
+import { getComicsByDay, comics } from "@/lib/mock-data/comics";
+import { cn } from "@/lib/utils";
+
+export function DailySchedule() {
+  // Get current day
+  const today = new Date(). toLocaleDateString("en-US", { weekday: "short" }). toUpperCase();
+  const todayKey = today === "MON" ? "MON" : 
+                   today === "TUE" ? "TUE" : 
+                   today === "WED" ? "WED" : 
+                   today === "THU" ? "THU" : 
+                   today === "FRI" ?  "FRI" : 
+                   today === "SAT" ?  "SAT" : "SUN";
+
+  const [activeDay, setActiveDay] = useState(todayKey);
+
+  // Count comics per day
+  const comicCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    DAYS.forEach((day) => {
+      counts[day] = getComicsByDay(day).length;
+    });
+    return counts;
+  }, []);
+
+  const currentComics = useMemo(() => getComicsByDay(activeDay), [activeDay]);
+
+  return (
+    <section className="py-8">
+      <div className="container mx-auto px-4">
+        {/* Section Header */}
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-text-primary">
+            📅 Lịch Phát Hành
+          </h2>
+          <p className="mt-1 text-sm text-text-secondary">
+            Theo dõi truyện cập nhật theo ngày trong tuần
+          </p>
+        </div>
+
+        {/* Day Tabs */}
+        <div className="mb-6 flex flex-wrap gap-2 rounded-xl bg-background-surface1 p-2">
+          {DAYS.map((day) => {
+            const isActive = activeDay === day;
+            const isToday = day === todayKey;
+            const count = comicCounts[day];
+
+            return (
+              <button
+                key={day}
+                onClick={() => setActiveDay(day)}
+                className={cn(
+                  "relative flex items-center gap-1. 5 rounded-lg px-4 py-2. 5 text-sm font-medium transition-all",
+                  isActive
+                    ? "bg-accent-brand text-white shadow-lg shadow-accent-brand/25"
+                    : "text-text-secondary hover:bg-background-surface2 hover:text-text-primary"
+                )}
+              >
+                <span>{DAY_LABELS[day]}</span>
+                {count > 0 && (
+                  <span
+                    className={cn(
+                      "rounded-full px-1. 5 py-0.5 text-xs",
+                      isActive
+                        ? "bg-white/20 text-white"
+                        : "bg-background-surface2 text-text-muted"
+                    )}
+                  >
+                    {count}
+                  </span>
+                )}
+                {isToday && ! isActive && (
+                  <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-accent-brand" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Comics Grid - Webtoon Style */}
+        {currentComics.length > 0 ?  (
+          <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
+            {currentComics.map((comic) => (
+              <ComicCard key={comic.id} comic={comic} variant="webtoon" />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-lg bg-background-surface1 py-12 text-center">
+            <p className="text-text-secondary">
+              Không có truyện cập nhật vào ngày này
+            </p>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
