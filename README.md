@@ -1,113 +1,114 @@
-# MangaHub - Community Manga Localization Platform
-
 <div align="center">
 
-![MangaHub](https://img.shields.io/badge/MangaHub-Community%20Platform-purple?style=for-the-badge)
+# 🎌 MangaHub
+
+### Community-Driven Manga Localization Platform
+
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=flat-square&logo=typescript)
+![Python](https://img.shields.io/badge/Python-3.10+-green?style=flat-square&logo=python)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.109-009688?style=flat-square&logo=fastapi)
 ![React](https://img.shields.io/badge/React-19-61dafb?style=flat-square&logo=react)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-38bdf8?style=flat-square&logo=tailwindcss)
 
-**A professional web-based manga translation and localization platform**
+**A professional web-based platform for community manga translation and localization**
 
-[Demo](#demo) • [Features](#features) • [Installation](#installation) • [Tech Stack](#tech-stack) • [Documentation](#documentation)
+[Features](#-features) • [Quick Start](#-quick-start) • [Project Structure](#-project-structure) • [API Reference](#-api-reference)
 
 </div>
 
 ---
 
-## 🎯 Overview
+## 📖 Overview
 
-MangaHub is a community-driven platform that streamlines the manga localization workflow:
+MangaHub is an all-in-one platform for manga scanlation teams:
 
-1. **Upload** raw manga pages
-2. **AI Processing** - OCR text detection + automatic bubble cleaning
-3. **Professional Editor** - Konva-based canvas with typesetting tools
-4. **Collaboration** - Teams, roles, and credit attribution
-5. **Publish** - Share with the community
+1. **📤 Upload** - Raw manga pages
+2. **🔍 AI OCR** - Automatic text detection with PaddleOCR  
+3. **🧹 Clean** - AI-powered text removal with OpenCV/LaMa
+4. **✏️ Edit** - Professional canvas editor with React-Konva
+5. **🌐 Translate** - Multi-language translation support
+6. **👥 Collaborate** - Team management and attribution
+7. **📚 Publish** - Share with the community
 
 ---
 
 ## ✨ Features
 
-### 📝 Professional Web Editor
-- **React-Konva** canvas with 4-layer system
-- **Vertical text** support (縦書き) for Japanese typography
+### 🎨 Professional Editor
+- **React-Konva** canvas with multi-layer system
+- **Vertical text** support (縦書き) for Japanese
 - **Brush/Pen tool** for manual cleaning
 - **Shape tools** (Rectangle, Ellipse) for covering text
-- **Transformer** for drag, resize, and rotate
+- **Transformer** for drag, resize, rotate
 - **Keyboard shortcuts** (V, T, B, E, R, O)
+- **Undo/Redo** history
 
-### 🤖 AI-Powered Translation
-- **PaddleOCR** integration for text detection
-- **Multi-language** support (JP, KR, CN, EN, VI)
-- **Auto-translation** with fallback APIs
-- **LaMa inpainting** for text removal
+### 🤖 AI-Powered Tools
+- **PaddleOCR** - Japanese, Korean, Chinese, English, Vietnamese
+- **OpenCV Inpainting** - TELEA, Navier-Stokes algorithms
+- **LaMa** - Deep learning inpainting (optional)
+- **Auto-translation** with MyMemory API
 
 ### 👥 Community Features
-- **Scanlation Teams** - Form groups and collaborate
+- **Scanlation Teams** - Create and manage groups
 - **Project Workflow** - Draft → In Progress → Published
-- **Credit System** - Automatic attribution page generation
+- **Attribution System** - Auto-generated credit pages
 - **User Roles** - Reader, Translator, Editor, Admin
 
 ---
 
-## 🚀 Demo
+## 🚀 Quick Start
 
-| Page | URL | Description |
-|------|-----|-------------|
-| Home | `/` | Manga reading platform |
-| Editor | `/editor` | Professional canvas editor |
-| Projects | `/projects` | Translation project dashboard |
-| Teams | `/teams` | Scanlation team management |
-| Translator | `/dich-truyen` | AI translation tool |
+### Prerequisites
 
----
+- **Node.js** 18+ (for frontend)
+- **Python** 3.10+ (for backend)
+- **Git**
 
-## 📦 Installation
+### 1️⃣ Clone Repository
 
 ```bash
-# Clone repository
 git clone <repository-url>
 cd my-manga-project
+```
 
+### 2️⃣ Setup Frontend
+
+```bash
 # Install dependencies
 npm install
 
 # Run development server
 npm run dev
-
-# Open in browser
-open http://localhost:3000
 ```
 
-### Environment Variables
+Frontend: http://localhost:3000
 
-Create `.env.local`:
+### 3️⃣ Setup Backend (Optional - for AI features)
 
-```env
-# Optional: AI Backend URL
-NEXT_PUBLIC_AI_BACKEND_URL=http://localhost:8000
+```bash
+cd backend
 
-# Optional: Supabase (for production)
-NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+# Create virtual environment
+python -m venv venv
+
+# Activate (Windows)
+venv\Scripts\activate
+
+# Activate (Linux/Mac)
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Optional: Install PaddleOCR
+pip install paddlepaddle paddleocr
+
+# Run server
+uvicorn app.main:app --reload --port 8000
 ```
 
----
-
-## 🛠 Tech Stack
-
-| Category | Technology |
-|----------|------------|
-| **Framework** | Next.js 16 (App Router) |
-| **Language** | TypeScript 5 |
-| **UI** | React 19 + Tailwind CSS 4 |
-| **Canvas** | React-Konva |
-| **State** | Zustand |
-| **Icons** | Lucide React |
-| **Database** | Supabase (PostgreSQL) |
-| **AI Backend** | Python FastAPI |
+Backend API: http://localhost:8000/docs
 
 ---
 
@@ -115,129 +116,135 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 
 ```
 my-manga-project/
-├── src/
-│   ├── app/                    # Next.js App Router
-│   │   ├── (main)/            # Main layout routes
-│   │   │   ├── editor/        # Canvas editor page
-│   │   │   ├── projects/      # Projects dashboard
-│   │   │   ├── teams/         # Teams management
-│   │   │   ├── dich-truyen/   # Translator tool
-│   │   │   └── truyen/        # Manga reading
-│   │   ├── (reader)/          # Reader layout routes
-│   │   └── api/               # API routes
-│   │       ├── editor/        # Editor APIs
-│   │       │   ├── pages/     # Page CRUD
-│   │       │   ├── projects/  # Project CRUD
-│   │       │   ├── chapters/  # Chapter CRUD
-│   │       │   ├── groups/    # Teams API
-│   │       │   └── credits/   # Attribution API
-│   │       └── translator/    # Translation APIs
+│
+├── 📂 backend/                 # Python FastAPI Backend
+│   ├── app/
+│   │   ├── main.py            # FastAPI application
+│   │   └── routers/
+│   │       ├── ocr.py         # PaddleOCR integration
+│   │       ├── inpainting.py  # OpenCV/LaMa
+│   │       └── translation.py # Translation API
+│   ├── requirements.txt
+│   ├── Dockerfile
+│   └── README.md
+│
+├── 📂 src/                     # Next.js Frontend
+│   ├── app/                   # App Router pages
+│   │   ├── (main)/           # Main layout
+│   │   │   ├── page.tsx      # Homepage
+│   │   │   ├── editor/       # Canvas editor
+│   │   │   ├── projects/     # Project dashboard
+│   │   │   ├── teams/        # Team management
+│   │   │   └── dich-truyen/  # Translator tool
+│   │   └── api/              # API routes
+│   │       ├── editor/       # Editor APIs
+│   │       └── translator/   # Translation APIs
 │   │
 │   ├── components/
-│   │   ├── features/          # Feature components
-│   │   │   ├── editor/        # MangaEditor, CreditGenerator
-│   │   │   ├── translator/    # TranslatorTool, Preview
-│   │   │   ├── comic/         # Comic cards, lists
-│   │   │   ├── reader/        # Reader components
-│   │   │   └── comment/       # Comment system
-│   │   ├── layout/            # Header, Footer, etc.
-│   │   ├── ui/                # Reusable UI components
-│   │   └── skeletons/         # Loading skeletons
+│   │   ├── features/         # Feature components
+│   │   │   ├── editor/       # MangaEditor, CreditGenerator
+│   │   │   ├── translator/   # TranslatorTool
+│   │   │   └── comic/        # Comic cards, lists
+│   │   ├── layout/           # Header, Footer, Sidebar
+│   │   └── ui/               # Reusable UI components
 │   │
-│   ├── lib/
-│   │   ├── api/               # API clients
-│   │   ├── stores/            # Zustand stores
-│   │   ├── types/             # TypeScript interfaces
-│   │   ├── constants/         # App constants
-│   │   ├── services/          # Business logic
-│   │   └── utils.ts           # Utility functions
-│   │
-│   ├── hooks/                 # Custom React hooks
-│   └── styles/                # Global styles
+│   └── lib/
+│       ├── api/              # API clients
+│       ├── stores/           # Zustand stores
+│       ├── types/            # TypeScript interfaces
+│       └── utils.ts          # Utilities
 │
-├── supabase/
-│   └── schema.sql             # Database schema
+├── 📂 supabase/               # Database
+│   └── schema.sql            # PostgreSQL schema
 │
-├── docs/
-│   └── backend-ai-integration.md  # AI backend docs
+├── 📂 docs/                   # Documentation
+│   └── backend-ai-integration.md
 │
-└── public/                    # Static assets
+└── 📂 public/                 # Static assets
 ```
 
 ---
 
-## 📚 Documentation
+## 🌐 Pages
 
-| Document | Description |
-|----------|-------------|
-| [Database Schema](./supabase/schema.sql) | PostgreSQL tables (users, groups, projects, pages) |
-| [AI Backend Guide](./docs/backend-ai-integration.md) | Python FastAPI with PaddleOCR & LaMa |
+| Route | Description |
+|-------|-------------|
+| `/` | Homepage with featured manga |
+| `/editor` | Professional canvas editor |
+| `/projects` | Translation projects dashboard |
+| `/teams` | Scanlation team management |
+| `/dich-truyen` | AI OCR + Translation tool |
+| `/truyen/:slug` | Manga detail page |
+| `/bang-xep-hang` | Rankings |
 
 ---
 
-## 🎨 Key Components
+## 🔌 API Reference
 
-### MangaEditor
-```tsx
-import { MangaEditor } from '@/components/features/editor'
+### Frontend API Routes (Next.js)
 
-<MangaEditor
-  imageUrl="/path/to/manga-page.jpg"
-  initialCanvasData={savedData}
-  onSave={(data) => saveToDatabase(data)}
-  width={1200}
-  height={800}
-/>
-```
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/editor/pages/:id` | GET/PUT | Page CRUD |
+| `/api/editor/pages/:id/canvas` | GET/PUT | Save canvas data |
+| `/api/editor/projects` | GET/POST | Projects |
+| `/api/editor/chapters` | GET/POST | Chapters |
+| `/api/editor/groups` | GET/POST | Teams |
+| `/api/editor/credits` | GET/POST | Credits |
 
-### TranslatorTool
-```tsx
-import { TranslatorTool } from '@/components/features/translator'
+### Backend API (Python FastAPI)
 
-<TranslatorTool />
-```
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/ocr/detect` | POST | OCR text detection |
+| `/api/inpaint/clean` | POST | Text removal |
+| `/api/inpaint/clean-auto` | POST | Auto-detect & remove |
+| `/api/translate/batch` | POST | Batch translation |
+
+📚 **Full API Docs**: http://localhost:8000/docs
 
 ---
 
 ## 🗄️ Database Schema
 
 ```
-users ──────┬──> groups ──> group_members
-            │
-            └──> series ──> projects ──> chapters ──> pages
-                                             │
-                                             └──> credits
+users ────┬───→ groups ───→ group_members
+          │
+          └───→ series ───→ projects ───→ chapters ───→ pages
+                                              │
+                                              └───→ credits
 ```
 
-**Key Tables:**
-- `pages.canvas_data` - JSONB storing editor state
-- `credits` - Chapter attribution tracking
-- `group_members` - Team roles (owner, translator, editor)
+**Key Table**: `pages.canvas_data` stores editor state as JSONB
 
 ---
 
-## 🔌 API Endpoints
+## 🛠️ Tech Stack
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/editor/pages/:id` | GET/PUT | Page CRUD |
-| `/api/editor/pages/:id/canvas` | GET/PUT | Canvas data |
-| `/api/editor/projects` | GET/POST | Projects |
-| `/api/editor/chapters` | GET/POST | Chapters |
-| `/api/editor/groups` | GET/POST | Teams |
-| `/api/editor/credits` | GET/POST | Credits |
-| `/api/translator/ocr` | POST | OCR detection |
-| `/api/translator/translate` | POST | Translation |
+| Layer | Technology |
+|-------|------------|
+| **Frontend** | Next.js 16, React 19, TypeScript |
+| **Styling** | Tailwind CSS 4 |
+| **Canvas** | React-Konva |
+| **State** | Zustand |
+| **Backend** | Python FastAPI |
+| **OCR** | PaddleOCR |
+| **Inpainting** | OpenCV, LaMa |
+| **Database** | Supabase (PostgreSQL) |
 
 ---
 
 ## 📜 Scripts
 
 ```bash
-npm run dev      # Development server
-npm run build    # Production build
-npm run start    # Production server
-npm run lint     # ESLint check
+# Frontend
+npm run dev          # Development server
+npm run build        # Production build
+npm run lint         # ESLint check
+
+# Backend
+uvicorn app.main:app --reload    # Dev server
+uvicorn app.main:app             # Production
 ```
 
 ---
@@ -261,5 +268,7 @@ MIT License - feel free to use for personal or commercial projects.
 <div align="center">
 
 **Built with ❤️ for the manga community**
+
+[Report Bug](issues) • [Request Feature](issues)
 
 </div>
