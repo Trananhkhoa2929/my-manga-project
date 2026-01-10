@@ -8,13 +8,13 @@ import { cn } from "@/lib/utils";
 
 export function DailySchedule() {
   // Get current day
-  const today = new Date(). toLocaleDateString("en-US", { weekday: "short" }). toUpperCase();
-  const todayKey = today === "MON" ? "MON" : 
-                   today === "TUE" ? "TUE" : 
-                   today === "WED" ? "WED" : 
-                   today === "THU" ? "THU" : 
-                   today === "FRI" ?  "FRI" : 
-                   today === "SAT" ?  "SAT" : "SUN";
+  const today = new Date().toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
+  const todayKey = today === "MON" ? "MON" :
+    today === "TUE" ? "TUE" :
+      today === "WED" ? "WED" :
+        today === "THU" ? "THU" :
+          today === "FRI" ? "FRI" :
+            today === "SAT" ? "SAT" : "SUN";
 
   const [activeDay, setActiveDay] = useState(todayKey);
 
@@ -30,16 +30,21 @@ export function DailySchedule() {
   const currentComics = useMemo(() => getComicsByDay(activeDay), [activeDay]);
 
   return (
-    <section className="py-8">
+    <section className="py-12 bg-gradient-to-b from-background-surface1/50 to-transparent">
       <div className="container mx-auto px-4">
         {/* Section Header */}
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-text-primary">
-            📅 Lịch Phát Hành
-          </h2>
-          <p className="mt-1 text-sm text-text-secondary">
-            Theo dõi truyện cập nhật theo ngày trong tuần
-          </p>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-black text-text-primary flex items-center gap-3">
+              <span className="text-3xl">📅</span>
+              <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                Lịch Phát Hành
+              </span>
+            </h2>
+            <p className="mt-2 text-sm text-text-secondary">
+              Theo dõi truyện cập nhật theo ngày trong tuần
+            </p>
+          </div>
         </div>
 
         {/* Day Tabs */}
@@ -73,7 +78,7 @@ export function DailySchedule() {
                     {count}
                   </span>
                 )}
-                {isToday && ! isActive && (
+                {isToday && !isActive && (
                   <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-accent-brand" />
                 )}
               </button>
@@ -82,7 +87,7 @@ export function DailySchedule() {
         </div>
 
         {/* Comics Grid - Webtoon Style */}
-        {currentComics.length > 0 ?  (
+        {currentComics.length > 0 ? (
           <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
             {currentComics.map((comic) => (
               <ComicCard key={comic.id} comic={comic} variant="webtoon" />

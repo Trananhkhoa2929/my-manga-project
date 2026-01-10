@@ -1,10 +1,14 @@
 import { DailySchedule } from "@/components/features/comic/daily-schedule";
 import { LatestUpdates } from "@/components/features/comic/latest-updates";
+import { HeroSpotlight } from "@/components/features/comic/hero-spotlight";
 import { Sidebar } from "@/components/layout/sidebar";
 
 export default function HomePage() {
   return (
     <div>
+      {/* Hero Spotlight - Featured Manga */}
+      <HeroSpotlight />
+
       {/* Daily Schedule - Webtoons Style */}
       <DailySchedule />
 

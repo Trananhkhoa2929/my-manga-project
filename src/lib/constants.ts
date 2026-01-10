@@ -45,8 +45,28 @@ export const USER_TITLES: Record<number, string> = {
 
 export const NAV_LINKS = [
   { href: "/", label: "Trang Chủ" },
+  { href: "/dich-truyen", label: "🌐 Dịch Truyện", featured: true },
   { href: "/tim-kiem", label: "Thể Loại" },
   { href: "/bang-xep-hang", label: "Xếp Hạng" },
-  { href: "/tim-kiem? gender=male", label: "Con Trai" },
+  { href: "/tim-kiem?gender=male", label: "Con Trai" },
   { href: "/tim-kiem?gender=female", label: "Con Gái" },
+];
+
+// Community features navigation
+export const COMMUNITY_LINKS = [
+  {
+    href: "/editor",
+    label: "✏️ Editor",
+    description: "Công cụ chỉnh sửa canvas chuyên nghiệp"
+  },
+  {
+    href: "/projects",
+    label: "📁 Dự Án",
+    description: "Quản lý dự án dịch thuật"
+  },
+  {
+    href: "/teams",
+    label: "👥 Nhóm Dịch",
+    description: "Tham gia nhóm dịch cộng đồng"
+  },
 ];
