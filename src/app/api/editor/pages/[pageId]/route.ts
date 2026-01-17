@@ -70,13 +70,13 @@ export async function PUT(
         }
 
         // Update page data
-        page = {
+        const updatedPage: PageData = {
             ...page,
             ...body,
             updated_at: new Date().toISOString(),
         }
 
-        pagesStore.set(pageId, page)
+        pagesStore.set(pageId, updatedPage)
 
         return NextResponse.json({
             success: true,

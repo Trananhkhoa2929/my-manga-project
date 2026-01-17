@@ -28,6 +28,18 @@ export interface OcrResponse {
     regions: TextRegion[]
     confidence: number
     processingTime: number
+    cleanedImage?: string | null // Base64 of cleaned image
+    jobId?: string
+    message?: string
+}
+
+export interface JobStatusResponse {
+    job_id: string
+    status: 'pending' | 'processing' | 'completed' | 'failed'
+    progress: number
+    message: string
+    result?: OcrResponse // Backend actually returns OCRResponse inside result
+    error?: string
 }
 
 // ============ Translation API ============
@@ -74,8 +86,8 @@ export interface LanguagesResponse {
 // ============ Upload Limits ============
 
 export const UPLOAD_LIMITS = {
-    maxFileSize: 10 * 1024 * 1024, // 10MB
+    maxFileSize: 50 * 1024 * 1024, // 50MB for raw manga scans
     allowedTypes: ['image/png', 'image/jpeg', 'image/webp'],
-    maxWidth: 4000,
-    maxHeight: 6000,
+    maxWidth: 10000,
+    maxHeight: 50000, // Long webtoons
 } as const

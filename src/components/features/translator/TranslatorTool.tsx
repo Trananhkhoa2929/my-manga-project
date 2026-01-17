@@ -25,7 +25,7 @@ import { useTranslatorStore } from '@/lib/stores/translatorStore'
 import { ImageUploader } from './ImageUploader'
 import { LanguageSelector } from './LanguageSelector'
 import { BubbleEditor } from './BubbleEditor'
-import { TranslationPreview } from './TranslationPreview'
+import { TranslationPreviewWithCleaning as TranslationPreview } from './TranslationPreviewWithCleaning'
 import { ProgressBar } from './ProgressBar'
 
 // Feature cards for hero section

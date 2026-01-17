@@ -43,7 +43,7 @@ export const PROCESSING_LIMITS = {
     maxFileSize: 10 * 1024 * 1024, // 10MB
     maxImageWidth: 4000,
     maxImageHeight: 6000,
-    allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp'],
+    allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp'] as string[],
 
     // OCR limits
     maxOcrRetries: 3,
@@ -80,8 +80,14 @@ export const DEFAULT_FONT_CONFIG = {
 
 // ============ API Endpoints ============
 
+// Python backend URL (manga-ocr, PaddleOCR)
+export const PYTHON_BACKEND_URL = 'http://localhost:8000'
+
 export const API_ENDPOINTS = {
-    ocr: '/api/translator/ocr',
+    // OCR uses Python backend (manga-ocr for Japanese)
+    ocr: `${PYTHON_BACKEND_URL}/api/ocr/detect`,
+    ocrStatus: `${PYTHON_BACKEND_URL}/api/ocr/status`,
+    // Translation and processing still use Next.js API
     translate: '/api/translator/translate',
     processImage: '/api/translator/process-image',
     languages: '/api/translator/languages',

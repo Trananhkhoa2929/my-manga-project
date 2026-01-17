@@ -9,6 +9,7 @@
 ![Python](https://img.shields.io/badge/Python-3.10+-green?style=flat-square&logo=python)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.109-009688?style=flat-square&logo=fastapi)
 ![React](https://img.shields.io/badge/React-19-61dafb?style=flat-square&logo=react)
+![YOLOv8](https://img.shields.io/badge/YOLOv8-Ultralytics-orange?style=flat-square)
 
 **A professional web-based platform for community manga translation and localization**
 
@@ -23,12 +24,13 @@
 MangaHub is an all-in-one platform for manga scanlation teams:
 
 1. **📤 Upload** - Raw manga pages
-2. **🔍 AI OCR** - Automatic text detection with PaddleOCR  
-3. **🧹 Clean** - AI-powered text removal with OpenCV/LaMa
-4. **✏️ Edit** - Professional canvas editor with React-Konva
-5. **🌐 Translate** - Multi-language translation support
-6. **👥 Collaborate** - Team management and attribution
-7. **📚 Publish** - Share with the community
+2. **🔍 AI OCR** - Automatic text detection with Manga-OCR & PaddleOCR
+3. **💬 Bubble Detection** - YOLOv8-powered speech bubble detection
+4. **🧹 Clean** - AI-powered text removal with OpenCV/LaMa
+5. **✏️ Edit** - Professional canvas editor with React-Konva
+6. **🌐 Translate** - Multi-language translation with Cotrans API
+7. **👥 Collaborate** - Team management and attribution
+8. **📚 Publish** - Share with the community
 
 ---
 
@@ -44,10 +46,13 @@ MangaHub is an all-in-one platform for manga scanlation teams:
 - **Undo/Redo** history
 
 ### 🤖 AI-Powered Tools
-- **PaddleOCR** - Japanese, Korean, Chinese, English, Vietnamese
+- **Manga-OCR** - Specialized OCR for Japanese manga text
+- **YOLOv8 Bubble Detector** - Automatic speech bubble detection
+- **PaddleOCR** - Multi-language: Japanese, Korean, Chinese, English, Vietnamese
 - **OpenCV Inpainting** - TELEA, Navier-Stokes algorithms
 - **LaMa** - Deep learning inpainting (optional)
-- **Auto-translation** with MyMemory API
+- **Cotrans API** - Professional manga translation service
+- **MyMemory API** - Fallback translation
 
 ### 👥 Community Features
 - **Scanlation Teams** - Create and manage groups
@@ -64,6 +69,7 @@ MangaHub is an all-in-one platform for manga scanlation teams:
 - **Node.js** 18+ (for frontend)
 - **Python** 3.10+ (for backend)
 - **Git**
+- **CUDA** (optional, for GPU acceleration)
 
 ### 1️⃣ Clone Repository
 
@@ -84,7 +90,7 @@ npm run dev
 
 Frontend: http://localhost:3000
 
-### 3️⃣ Setup Backend (Optional - for AI features)
+### 3️⃣ Setup Backend (Required for AI features)
 
 ```bash
 cd backend
@@ -101,14 +107,20 @@ source venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Optional: Install PaddleOCR
-pip install paddlepaddle paddleocr
-
 # Run server
 uvicorn app.main:app --reload --port 8000
 ```
 
 Backend API: http://localhost:8000/docs
+
+### 4️⃣ Environment Configuration
+
+```bash
+# Copy example env file
+cp backend/env.example backend/.env
+
+# Edit .env with your settings (if needed)
+```
 
 ---
 
@@ -117,50 +129,63 @@ Backend API: http://localhost:8000/docs
 ```
 my-manga-project/
 │
-├── 📂 backend/                 # Python FastAPI Backend
+├── 📂 backend/                    # Python FastAPI Backend
 │   ├── app/
-│   │   ├── main.py            # FastAPI application
-│   │   └── routers/
-│   │       ├── ocr.py         # PaddleOCR integration
-│   │       ├── inpainting.py  # OpenCV/LaMa
-│   │       └── translation.py # Translation API
+│   │   ├── main.py               # FastAPI application
+│   │   ├── routers/
+│   │   │   ├── ocr.py            # OCR endpoints (Manga-OCR + PaddleOCR)
+│   │   │   ├── inpainting.py     # Image cleaning endpoints
+│   │   │   └── translation.py    # Translation endpoints
+│   │   └── services/
+│   │       ├── manga_ocr_service.py      # Manga-OCR integration
+│   │       ├── bubble_detector_service.py # YOLOv8 bubble detection
+│   │       ├── cotrans_service.py        # Cotrans translation API
+│   │       └── image_processor.py        # Image processing utilities
 │   ├── requirements.txt
 │   ├── Dockerfile
+│   ├── env.example
 │   └── README.md
 │
-├── 📂 src/                     # Next.js Frontend
-│   ├── app/                   # App Router pages
-│   │   ├── (main)/           # Main layout
-│   │   │   ├── page.tsx      # Homepage
-│   │   │   ├── editor/       # Canvas editor
-│   │   │   ├── projects/     # Project dashboard
-│   │   │   ├── teams/        # Team management
-│   │   │   └── dich-truyen/  # Translator tool
-│   │   └── api/              # API routes
-│   │       ├── editor/       # Editor APIs
-│   │       └── translator/   # Translation APIs
+├── 📂 src/                        # Next.js Frontend
+│   ├── app/                      # App Router pages
+│   │   ├── (main)/              # Main layout group
+│   │   │   ├── page.tsx         # Homepage
+│   │   │   ├── editor/          # Canvas editor
+│   │   │   ├── projects/        # Project dashboard
+│   │   │   ├── teams/           # Team management
+│   │   │   ├── dich-truyen/     # Translator tool
+│   │   │   ├── tim-kiem/        # Search page
+│   │   │   ├── bang-xep-hang/   # Rankings
+│   │   │   └── truyen/          # Manga details
+│   │   ├── (reader)/            # Reader layout
+│   │   └── api/                 # API routes
+│   │       ├── editor/          # Editor APIs
+│   │       └── translator/      # Translation APIs
 │   │
 │   ├── components/
-│   │   ├── features/         # Feature components
-│   │   │   ├── editor/       # MangaEditor, CreditGenerator
-│   │   │   ├── translator/   # TranslatorTool
-│   │   │   └── comic/        # Comic cards, lists
-│   │   ├── layout/           # Header, Footer, Sidebar
-│   │   └── ui/               # Reusable UI components
+│   │   ├── features/            # Feature components
+│   │   │   ├── editor/          # MangaEditor, CreditGenerator
+│   │   │   ├── translator/      # TranslatorTool, ProgressBar
+│   │   │   └── comic/           # Comic cards, lists
+│   │   ├── layout/              # Header, Footer, Sidebar
+│   │   └── ui/                  # Reusable UI components
 │   │
-│   └── lib/
-│       ├── api/              # API clients
-│       ├── stores/           # Zustand stores
-│       ├── types/            # TypeScript interfaces
-│       └── utils.ts          # Utilities
+│   ├── lib/
+│   │   ├── api/                 # API clients
+│   │   ├── server/              # Server-side services
+│   │   ├── stores/              # Zustand stores
+│   │   ├── types/               # TypeScript interfaces
+│   │   └── utils.ts             # Utilities
+│   │
+│   └── hooks/                   # Custom React hooks
 │
-├── 📂 supabase/               # Database
-│   └── schema.sql            # PostgreSQL schema
+├── 📂 supabase/                  # Database
+│   └── schema.sql               # PostgreSQL schema
 │
-├── 📂 docs/                   # Documentation
+├── 📂 docs/                      # Documentation
 │   └── backend-ai-integration.md
 │
-└── 📂 public/                 # Static assets
+└── 📂 public/                    # Static assets
 ```
 
 ---
@@ -175,6 +200,8 @@ my-manga-project/
 | `/teams` | Scanlation team management |
 | `/dich-truyen` | AI OCR + Translation tool |
 | `/truyen/:slug` | Manga detail page |
+| `/truyen/:slug/:chapter` | Chapter reader |
+| `/tim-kiem` | Search manga |
 | `/bang-xep-hang` | Rankings |
 
 ---
@@ -191,15 +218,20 @@ my-manga-project/
 | `/api/editor/chapters` | GET/POST | Chapters |
 | `/api/editor/groups` | GET/POST | Teams |
 | `/api/editor/credits` | GET/POST | Credits |
+| `/api/translator/ocr` | POST | OCR via Next.js proxy |
+| `/api/translator/translate` | POST | Translation proxy |
 
 ### Backend API (Python FastAPI)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/ocr/detect` | POST | OCR text detection |
+| `/api/ocr/detect` | POST | OCR text detection (Manga-OCR) |
+| `/api/ocr/detect-bubbles` | POST | YOLOv8 bubble detection |
 | `/api/inpaint/clean` | POST | Text removal |
 | `/api/inpaint/clean-auto` | POST | Auto-detect & remove |
+| `/api/translate/text` | POST | Single text translation |
 | `/api/translate/batch` | POST | Batch translation |
+| `/health` | GET | Health check |
 
 📚 **Full API Docs**: http://localhost:8000/docs
 
@@ -228,9 +260,12 @@ users ────┬───→ groups ───→ group_members
 | **Canvas** | React-Konva |
 | **State** | Zustand |
 | **Backend** | Python FastAPI |
-| **OCR** | PaddleOCR |
+| **OCR** | Manga-OCR, PaddleOCR (optional) |
+| **Detection** | YOLOv8 (Ultralytics) |
 | **Inpainting** | OpenCV, LaMa |
+| **Translation** | Cotrans API, MyMemory |
 | **Database** | Supabase (PostgreSQL) |
+| **ML Framework** | PyTorch, Transformers |
 
 ---
 

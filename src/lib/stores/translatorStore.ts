@@ -158,62 +158,190 @@ export const useTranslatorStore = create<TranslatorState>((set, get) => ({
                 error: null,
             })
 
-            // Try server-side first, fallback to client
+            // Try server-side first, fallback to enhanced client-side
             let regions: TextRegion[] = []
 
             try {
-                // Attempt server-side OCR with timeout
-                set({ progress: 10, processingMessage: 'Đang nhận dạng text...' })
+                // Start async OCR job
+                set({ progress: 5, processingMessage: 'Đang gửi yêu cầu OCR...' })
 
-                const controller = new AbortController()
-                const timeoutId = setTimeout(() => controller.abort(), 60000) // 60s timeout
-
-                const ocrResult = await translatorApi.performOcr(originalImage.file, sourceLanguage)
-                clearTimeout(timeoutId)
-
-                regions = ocrResult.regions
-                set({ progress: 70 })
-            } catch (serverError) {
-                // Fallback to client-side Tesseract
-                console.log('[Store] Server OCR failed, using client-side Tesseract')
-                set({ processingMessage: 'Đang tải dữ liệu ngôn ngữ (có thể mất 1-2 phút)...' })
-
-                const result = await Tesseract.recognize(
-                    originalImage.url,
-                    TESSERACT_LANG_MAP[sourceLanguage],
-                    {
-                        logger: (m) => {
-                            if (m.status === 'loading tesseract core') {
-                                set({ progress: 15, processingMessage: 'Đang tải Tesseract core...' })
-                            } else if (m.status === 'loading language traineddata') {
-                                set({ progress: 25, processingMessage: `Đang tải dữ liệu ${sourceLanguage}...` })
-                            } else if (m.status === 'initializing tesseract') {
-                                set({ progress: 40, processingMessage: 'Đang khởi tạo OCR engine...' })
-                            } else if (m.status === 'recognizing text') {
-                                const prog = 40 + Math.round(m.progress * 30)
-                                set({ progress: prog, processingMessage: `Đang nhận dạng: ${Math.round(m.progress * 100)}%` })
-                            }
-                        },
-                    }
+                const jobResponse = await translatorApi.startOcrJob(
+                    originalImage.file,
+                    sourceLanguage,
+                    get().targetLanguage
                 )
 
-                // Extract regions from client-side result
-                if (result.data.lines) {
-                    regions = result.data.lines.map((line) => ({
-                        id: uuidv4(),
-                        boundingBox: {
-                            x: line.bbox.x0,
-                            y: line.bbox.y0,
-                            width: line.bbox.x1 - line.bbox.x0,
-                            height: line.bbox.y1 - line.bbox.y0,
-                        },
-                        text: line.text.trim(),
-                        confidence: line.confidence,
+                // Poll until complete with real-time progress updates
+                const completedJob = await translatorApi.pollUntilComplete(
+                    jobResponse.job_id,
+                    (progress, message) => {
+                        set({ progress, processingMessage: message })
+                    },
+                    500 // Poll every 500ms
+                )
+
+                // Extract regions from result
+                if (completedJob.result?.regions) {
+                    regions = completedJob.result.regions.map((r: any) => ({
+                        id: r.id,
+                        text: r.text,
+                        confidence: r.confidence,
+                        boundingBox: r.bounding_box || r.boundingBox,
                         language: sourceLanguage,
                     }))
                 }
+                set({ progress: 75 })
+            } catch (serverError) {
+                // Fallback to enhanced client-side Tesseract with preprocessing
+                console.log('[Store] Server OCR failed, using enhanced client-side Tesseract')
 
-                set({ progress: 70 })
+                // Dynamic import of preprocessing utils (only when needed)
+                const {
+                    imageToCanvas,
+                    preprocessCanvas,
+                    needsTiling,
+                    splitIntoTiles,
+                    mergeTileResults,
+                    canvasToDataURL,
+                    calculateTileConfig,
+                } = await import('@/lib/utils/imagePreprocessing')
+
+                set({ progress: 10, processingMessage: 'Đang tiền xử lý ảnh...' })
+
+                // Load and preprocess the image
+                const canvas = await imageToCanvas(originalImage.url)
+                const processedCanvas = preprocessCanvas(canvas, {
+                    enhanceContrast: true,
+                    contrastLevel: 1.6,
+                    grayscale: true,
+                    binarize: false,
+                    denoise: false,
+                })
+
+                set({ progress: 15, processingMessage: 'Đang tải dữ liệu ngôn ngữ...' })
+
+                // Check if we need tile-based OCR for long images
+                const useTiling = needsTiling(processedCanvas, 2000)
+
+                if (useTiling) {
+                    // Tile-based OCR for long manga pages
+                    const tileConfig = calculateTileConfig(processedCanvas.height)
+                    const tiles = splitIntoTiles(processedCanvas, tileConfig)
+
+                    console.log(`[Store] Image is long (${processedCanvas.height}px), splitting into ${tiles.length} tiles`)
+                    set({ processingMessage: `Đang xử lý ${tiles.length} phần ảnh...` })
+
+                    const tileResults: { regions: TextRegion[], offsetY: number }[] = []
+
+                    for (let i = 0; i < tiles.length; i++) {
+                        const tile = tiles[i]
+                        const tileProgress = 20 + Math.round((i / tiles.length) * 50)
+                        set({
+                            progress: tileProgress,
+                            processingMessage: `Đang OCR phần ${i + 1}/${tiles.length}...`
+                        })
+
+                        const tileDataUrl = canvasToDataURL(tile.canvas)
+
+                        const result = await Tesseract.recognize(
+                            tileDataUrl,
+                            TESSERACT_LANG_MAP[sourceLanguage],
+                            {
+                                logger: (m) => {
+                                    if (m.status === 'recognizing text') {
+                                        const prog = tileProgress + Math.round(m.progress * (50 / tiles.length))
+                                        set({ progress: prog })
+                                    }
+                                },
+                            }
+                        )
+
+                        // Extract regions from tile result
+                        const tileRegions: TextRegion[] = []
+                        if (result.data.blocks) {
+                            for (const block of result.data.blocks) {
+                                for (const paragraph of block.paragraphs) {
+                                    for (const line of paragraph.lines) {
+                                        // Lower confidence threshold for manga
+                                        if (line.confidence > 15 && line.text.trim().length > 0) {
+                                            tileRegions.push({
+                                                id: uuidv4(),
+                                                boundingBox: {
+                                                    x: line.bbox.x0,
+                                                    y: line.bbox.y0,
+                                                    width: line.bbox.x1 - line.bbox.x0,
+                                                    height: line.bbox.y1 - line.bbox.y0,
+                                                },
+                                                text: line.text.trim(),
+                                                confidence: line.confidence,
+                                                language: sourceLanguage,
+                                            })
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        tileResults.push({ regions: tileRegions, offsetY: tile.offsetY })
+                    }
+
+                    // Merge all tile results
+                    set({ progress: 75, processingMessage: 'Đang ghép kết quả...' })
+                    const mergedRegions = mergeTileResults(tileResults, tileConfig.overlap)
+                    regions = mergedRegions as TextRegion[]
+
+                } else {
+                    // Standard OCR for normal-sized images
+                    set({ processingMessage: 'Đang nhận dạng văn bản...' })
+
+                    const processedDataUrl = canvasToDataURL(processedCanvas)
+
+                    const result = await Tesseract.recognize(
+                        processedDataUrl,
+                        TESSERACT_LANG_MAP[sourceLanguage],
+                        {
+                            logger: (m) => {
+                                if (m.status === 'loading tesseract core') {
+                                    set({ progress: 20, processingMessage: 'Đang tải Tesseract core...' })
+                                } else if (m.status === 'loading language traineddata') {
+                                    set({ progress: 30, processingMessage: `Đang tải dữ liệu ${sourceLanguage}...` })
+                                } else if (m.status === 'initializing tesseract') {
+                                    set({ progress: 45, processingMessage: 'Đang khởi tạo OCR engine...' })
+                                } else if (m.status === 'recognizing text') {
+                                    const prog = 45 + Math.round(m.progress * 30)
+                                    set({ progress: prog, processingMessage: `Đang nhận dạng: ${Math.round(m.progress * 100)}%` })
+                                }
+                            },
+                        }
+                    )
+
+                    // Extract regions with lower confidence threshold
+                    if (result.data.blocks) {
+                        for (const block of result.data.blocks) {
+                            for (const paragraph of block.paragraphs) {
+                                for (const line of paragraph.lines) {
+                                    // Lower threshold from 30 to 15 for manga
+                                    if (line.confidence > 15 && line.text.trim().length > 0) {
+                                        regions.push({
+                                            id: uuidv4(),
+                                            boundingBox: {
+                                                x: line.bbox.x0,
+                                                y: line.bbox.y0,
+                                                width: line.bbox.x1 - line.bbox.x0,
+                                                height: line.bbox.y1 - line.bbox.y0,
+                                            },
+                                            text: line.text.trim(),
+                                            confidence: line.confidence,
+                                            language: sourceLanguage,
+                                        })
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                set({ progress: 80 })
             }
 
             set({ processingMessage: 'Đang phân tích bubble...' })
@@ -227,7 +355,7 @@ export const useTranslatorStore = create<TranslatorState>((set, get) => ({
                 isProcessing: false,
                 processingMessage: '',
                 progress: 100,
-                error: bubbles.length === 0 ? 'Không tìm thấy văn bản trong ảnh. Thử với ảnh khác hoặc ngôn ngữ khác.' : null,
+                error: bubbles.length === 0 ? 'Không tìm thấy văn bản. Thử chọn ngôn ngữ khác hoặc ảnh rõ hơn.' : null,
             })
         } catch (error) {
             set({

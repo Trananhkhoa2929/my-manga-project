@@ -90,7 +90,7 @@ class OcrServerService {
             const result = await worker.recognize(processedBuffer)
 
             // Extract text regions
-            const regions: TextRegion[] = result.data.blocks.flatMap((block) =>
+            const regions: TextRegion[] = (result.data.blocks ?? []).flatMap((block) =>
                 block.paragraphs.flatMap((paragraph) =>
                     paragraph.lines.map((line) => ({
                         id: uuidv4(),
@@ -151,18 +151,28 @@ class OcrServerService {
                 },
             })
 
-            const regions: TextRegion[] = result.data.words.map((word) => ({
-                id: uuidv4(),
-                boundingBox: {
-                    x: word.bbox.x0,
-                    y: word.bbox.y0,
-                    width: word.bbox.x1 - word.bbox.x0,
-                    height: word.bbox.y1 - word.bbox.y0,
-                },
-                text: word.text,
-                confidence: word.confidence,
-                language,
-            }))
+            // Extract text regions from blocks -> paragraphs -> lines
+            const regions: TextRegion[] = []
+            if (result.data.blocks) {
+                for (const block of result.data.blocks) {
+                    for (const paragraph of block.paragraphs) {
+                        for (const line of paragraph.lines) {
+                            regions.push({
+                                id: uuidv4(),
+                                boundingBox: {
+                                    x: line.bbox.x0,
+                                    y: line.bbox.y0,
+                                    width: line.bbox.x1 - line.bbox.x0,
+                                    height: line.bbox.y1 - line.bbox.y0,
+                                },
+                                text: line.text,
+                                confidence: line.confidence,
+                                language,
+                            })
+                        }
+                    }
+                }
+            }
 
             return {
                 regions,

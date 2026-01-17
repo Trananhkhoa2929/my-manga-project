@@ -90,18 +90,28 @@ class OCRService {
 
         const result = await this.worker.recognize(imageSource)
 
-        const regions: TextRegion[] = result.data.words.map((word) => ({
-            id: uuidv4(),
-            boundingBox: {
-                x: word.bbox.x0,
-                y: word.bbox.y0,
-                width: word.bbox.x1 - word.bbox.x0,
-                height: word.bbox.y1 - word.bbox.y0,
-            },
-            text: word.text,
-            confidence: word.confidence,
-            language,
-        }))
+        // Extract words from lines in paragraphs in blocks
+        const regions: TextRegion[] = []
+        if (result.data.blocks) {
+            for (const block of result.data.blocks) {
+                for (const paragraph of block.paragraphs) {
+                    for (const line of paragraph.lines) {
+                        regions.push({
+                            id: uuidv4(),
+                            boundingBox: {
+                                x: line.bbox.x0,
+                                y: line.bbox.y0,
+                                width: line.bbox.x1 - line.bbox.x0,
+                                height: line.bbox.y1 - line.bbox.y0,
+                            },
+                            text: line.text,
+                            confidence: line.confidence,
+                            language,
+                        })
+                    }
+                }
+            }
+        }
 
         console.log(`[OCR] Extracted ${regions.length} text regions`)
 
@@ -135,18 +145,28 @@ class OCRService {
             },
         })
 
-        const regions: TextRegion[] = result.data.words.map((word) => ({
-            id: uuidv4(),
-            boundingBox: {
-                x: word.bbox.x0,
-                y: word.bbox.y0,
-                width: word.bbox.x1 - word.bbox.x0,
-                height: word.bbox.y1 - word.bbox.y0,
-            },
-            text: word.text,
-            confidence: word.confidence,
-            language,
-        }))
+        // Extract words from lines in paragraphs in blocks
+        const regions: TextRegion[] = []
+        if (result.data.blocks) {
+            for (const block of result.data.blocks) {
+                for (const paragraph of block.paragraphs) {
+                    for (const line of paragraph.lines) {
+                        regions.push({
+                            id: uuidv4(),
+                            boundingBox: {
+                                x: line.bbox.x0,
+                                y: line.bbox.y0,
+                                width: line.bbox.x1 - line.bbox.x0,
+                                height: line.bbox.y1 - line.bbox.y0,
+                            },
+                            text: line.text,
+                            confidence: line.confidence,
+                            language,
+                        })
+                    }
+                }
+            }
+        }
 
         return {
             text: result.data.text,
@@ -171,7 +191,7 @@ class OCRService {
         const result = await this.worker.recognize(imageSource)
 
         // Group words into blocks based on Tesseract's paragraph detection
-        const blocks: TextRegion[] = result.data.blocks.map((block) => ({
+        const blocks: TextRegion[] = (result.data.blocks ?? []).map((block) => ({
             id: uuidv4(),
             boundingBox: {
                 x: block.bbox.x0,
