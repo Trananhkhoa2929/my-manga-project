@@ -43,7 +43,6 @@ export async function loginAction(values: z.infer<typeof LoginSchema>) {
             password,
             redirectTo: "/",
         });
-        return { success: "Logged in!" };
     } catch (error) {
         if (error instanceof AuthError) {
             switch (error.type) {
@@ -53,8 +52,11 @@ export async function loginAction(values: z.infer<typeof LoginSchema>) {
                     return { error: "Something went wrong!" };
             }
         }
+        // Re-throw redirect errors (NextAuth uses this for redirects)
         throw error;
     }
+    // Redirect will happen, so this won't be reached
+    return { success: "Logged in!" };
 }
 
 export async function registerAction(values: z.infer<typeof RegisterSchema>) {
