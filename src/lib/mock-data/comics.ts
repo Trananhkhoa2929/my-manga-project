@@ -3,7 +3,7 @@ import { Comic } from "@/lib/types";
 // Helper để generate ngày random gần đây
 const randomRecentDate = (hoursAgo: number = 24) => {
   const date = new Date();
-  date.setHours(date.getHours() - Math.floor(Math. random() * hoursAgo));
+  date.setHours(date.getHours() - Math.floor(Math.random() * hoursAgo));
   return date.toISOString();
 };
 
@@ -245,7 +245,7 @@ export const comics: Comic[] = [
     id: "10",
     title: "Eleceed",
     slug: "eleceed",
-    thumbnail: "https://picsum. photos/seed/comic10/300/400",
+    thumbnail: "https://picsum.photos/seed/comic10/300/400",
     coverImage: "https://picsum.photos/seed/comic10cover/1200/600",
     authors: ["Son Jeho", "ZHENA"],
     status: "Ongoing",
@@ -272,7 +272,7 @@ export const comics: Comic[] = [
     id: "11",
     title: "Nano Machine",
     slug: "nano-machine",
-    thumbnail: "https://picsum. photos/seed/comic11/300/400",
+    thumbnail: "https://picsum.photos/seed/comic11/300/400",
     authors: ["한중월야"],
     status: "Ongoing",
     genres: [
@@ -321,7 +321,7 @@ export const comics: Comic[] = [
     id: "13",
     title: "Overgeared",
     slug: "overgeared",
-    thumbnail: "https://picsum. photos/seed/comic13/300/400",
+    thumbnail: "https://picsum.photos/seed/comic13/300/400",
     authors: ["Park Saenal"],
     status: "Ongoing",
     genres: [
@@ -400,7 +400,7 @@ export const getComicsByDay = (day: string): Comic[] => {
 };
 
 export const getHotComics = (): Comic[] => {
-  return comics.filter((c) => c. isHot);
+  return comics.filter((c) => c.isHot);
 };
 
 export const getNewComics = (): Comic[] => {
@@ -408,7 +408,7 @@ export const getNewComics = (): Comic[] => {
 };
 
 export const getTopComics = (limit: number = 10): Comic[] => {
-  return [... comics].sort((a, b) => b.totalViews - a. totalViews). slice(0, limit);
+  return [...comics].sort((a, b) => b.totalViews - a.totalViews).slice(0, limit);
 };
 
 export const getComicBySlug = (slug: string): Comic | undefined => {
@@ -417,6 +417,6 @@ export const getComicBySlug = (slug: string): Comic | undefined => {
 
 export const getRecentUpdates = (limit: number = 20): Comic[] => {
   return [...comics]
-    .sort((a, b) => new Date(b.lastUpdated). getTime() - new Date(a.lastUpdated).getTime())
+    .sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())
     .slice(0, limit);
 };

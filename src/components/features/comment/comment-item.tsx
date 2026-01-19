@@ -20,7 +20,7 @@ const roleColors: Record<string, string> = {
 };
 
 export function CommentItem({ comment, isReply = false }: CommentItemProps) {
-  const [likes, setLikes] = useState(comment. likes);
+  const [likes, setLikes] = useState(comment.likes);
   const [liked, setLiked] = useState(false);
   const [showReply, setShowReply] = useState(false);
 
@@ -37,7 +37,7 @@ export function CommentItem({ comment, isReply = false }: CommentItemProps) {
   const getUserTitle = (level: number) => {
     const levels = Object.keys(USER_TITLES)
       .map(Number)
-      . sort((a, b) => b - a);
+      .sort((a, b) => b - a);
     for (const lvl of levels) {
       if (level >= lvl) return USER_TITLES[lvl];
     }
@@ -62,7 +62,7 @@ export function CommentItem({ comment, isReply = false }: CommentItemProps) {
           <span className={cn("font-semibold", roleColors[comment.userRole])}>
             {comment.userName}
           </span>
-          <span className="rounded bg-accent-brand/20 px-1. 5 py-0.5 text-xs text-accent-brand">
+          <span className="rounded bg-accent-brand/20 px-1.5 py-0.5 text-xs text-accent-brand">
             Lv. {comment.userLevel} {getUserTitle(comment.userLevel)}
           </span>
           <span className="text-xs text-text-muted">
@@ -79,15 +79,15 @@ export function CommentItem({ comment, isReply = false }: CommentItemProps) {
             onClick={handleLike}
             className={cn(
               "flex items-center gap-1 text-xs",
-              liked ?  "text-accent-brand" : "text-text-muted hover:text-text-primary"
+              liked ? "text-accent-brand" : "text-text-muted hover:text-text-primary"
             )}
           >
             <ThumbsUp className={cn("h-4 w-4", liked && "fill-current")} />
             {likes}
           </button>
-          {! isReply && (
+          {!isReply && (
             <button
-              onClick={() => setShowReply(! showReply)}
+              onClick={() => setShowReply(!showReply)}
               className="flex items-center gap-1 text-xs text-text-muted hover:text-text-primary"
             >
               <MessageSquare className="h-4 w-4" />

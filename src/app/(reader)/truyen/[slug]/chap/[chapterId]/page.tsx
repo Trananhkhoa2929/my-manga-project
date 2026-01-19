@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { ReaderToolbar } from "@/components/features/reader/reader-toolbar";
@@ -13,19 +13,20 @@ import { getChapterDetail, generateChapters } from "@/lib/mock-data/chapters";
 import { useReadingHistory } from "@/hooks/use-reading-history";
 
 interface Props {
-  params: { slug: string; chapterId: string };
+  params: Promise<{ slug: string; chapterId: string }>;
 }
 
 export default function ReaderPage({ params }: Props) {
+  const { slug, chapterId } = use(params);
   const [showChapterList, setShowChapterList] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const { addToHistory } = useReadingHistory();
 
-  const comic = getComicBySlug(params. slug);
-  const chapterNumber = parseInt(params. chapterId. replace("chap-", ""));
-  const totalChapters = comic?. latestChapters[0]?.number || 100;
-  const chapter = getChapterDetail(params.slug, chapterNumber, totalChapters);
-  const allChapters = generateChapters(params.slug, totalChapters);
+  const comic = getComicBySlug(slug);
+  const chapterNumber = parseInt(chapterId.replace("chap-", ""));
+  const totalChapters = comic?.latestChapters[0]?.number || 100;
+  const chapter = getChapterDetail(slug, chapterNumber, totalChapters);
+  const allChapters = generateChapters(slug, totalChapters);
 
   // Save to history on mount
   useEffect(() => {
@@ -33,14 +34,15 @@ export default function ReaderPage({ params }: Props) {
       addToHistory({
         comicId: comic.id,
         comicSlug: comic.slug,
-        comicTitle: comic. title,
+        comicTitle: comic.title,
         comicThumbnail: comic.thumbnail,
         chapterId: chapter.id,
         chapterNumber: chapter.number,
         lastPage: 1,
       });
     }
-  }, [comic, chapter, addToHistory]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comic?.id, chapter?.id]);
 
   if (!comic || !chapter) {
     return (
@@ -95,7 +97,7 @@ export default function ReaderPage({ params }: Props) {
           <p className="text-lg font-semibold text-text-primary">
             Kết thúc Chapter {chapter.number}
           </p>
-          {chapter.nextChapterSlug ?  (
+          {chapter.nextChapterSlug ? (
             <Link
               href={`/truyen/${comic.slug}/chap/${chapter.nextChapterSlug}`}
               className="inline-flex items-center gap-2 rounded-lg bg-accent-brand px-6 py-3 font-semibold text-white transition-colors hover:bg-accent-brand/90"
@@ -119,16 +121,16 @@ export default function ReaderPage({ params }: Props) {
 
       {/* Comments */}
       <div className="mx-auto max-w-[900px] px-4">
-        <CommentSection chapterId={chapter. id} />
+        <CommentSection chapterId={chapter.id} />
       </div>
 
       {/* Reader Toolbar */}
       <ReaderToolbar
         comicSlug={comic.slug}
-        comicTitle={comic. title}
+        comicTitle={comic.title}
         currentChapter={chapter.number}
         totalChapters={totalChapters}
-        prevChapterSlug={chapter. prevChapterSlug}
+        prevChapterSlug={chapter.prevChapterSlug}
         nextChapterSlug={chapter.nextChapterSlug}
         onOpenChapterList={() => setShowChapterList(true)}
         onOpenSettings={() => setShowSettings(true)}

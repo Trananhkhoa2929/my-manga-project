@@ -13,8 +13,8 @@ export const generateChapters = (comicId: string, totalChapters: number): Chapte
       id: `${comicId}-ch-${i}`,
       number: i,
       slug: `chap-${i}`,
-      updatedAt: date. toISOString(),
-      views: Math.floor(Math. random() * 100000) + 10000,
+      updatedAt: date.toISOString(),
+      views: Math.floor(Math.random() * 100000) + 10000,
     });
   }
 
@@ -31,7 +31,7 @@ export const getChapterDetail = (
   const images = Array.from({ length: totalPages }, (_, i) => ({
     page: i + 1,
     src: `https://picsum.photos/seed/${comicId}-${chapterNumber}-${i}/800/1200`,
-    backupSrc: `https://via.placeholder.com/800x1200? text=Page+${i + 1}`,
+    backupSrc: `https://via.placeholder.com/800x1200?text=Page+${i + 1}`,
   }));
 
   return {

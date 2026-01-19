@@ -41,21 +41,24 @@ export function useReadingHistory() {
 
       setHistory((prev) => {
         // Loại bỏ entry cũ của cùng comic
-        const filtered = prev.filter((h) => h.comicId !== entry. comicId);
+        const filtered = prev.filter((h) => h.comicId !== entry.comicId);
         // Thêm entry mới vào đầu
-        const updated = [newEntry, ...filtered]. slice(0, MAX_HISTORY);
-        saveHistory(updated);
+        const updated = [newEntry, ...filtered].slice(0, MAX_HISTORY);
+        // Save to localStorage directly to avoid triggering another setState
+        if (typeof window !== "undefined") {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        }
         return updated;
       });
     },
-    [saveHistory]
+    []
   );
 
   // Xóa một entry
   const removeFromHistory = useCallback(
     (comicId: string) => {
       setHistory((prev) => {
-        const filtered = prev.filter((h) => h. comicId !== comicId);
+        const filtered = prev.filter((h) => h.comicId !== comicId);
         saveHistory(filtered);
         return filtered;
       });

@@ -23,15 +23,15 @@ export function ChapterList({
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   const filteredChapters = useMemo(() => {
-    let result = [... chapters];
+    let result = [...chapters];
 
     // Filter by search
     if (searchQuery) {
-      const query = searchQuery. toLowerCase();
+      const query = searchQuery.toLowerCase();
       result = result.filter(
         (ch) =>
           ch.number.toString().includes(query) ||
-          ch. name?. toLowerCase().includes(query)
+          ch.name?.toLowerCase().includes(query)
       );
     }
 
@@ -59,7 +59,7 @@ export function ChapterList({
               type="text"
               placeholder="Tìm chương..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e. target.value)}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9"
             />
           </div>
@@ -77,7 +77,7 @@ export function ChapterList({
       {/* Chapter List */}
       <div className="max-h-96 space-y-1 overflow-y-auto scrollbar-hide">
         {filteredChapters.map((chapter) => {
-          const isRead = readChapters. includes(chapter.id);
+          const isRead = readChapters.includes(chapter.id);
 
           return (
             <Link

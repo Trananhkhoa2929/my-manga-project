@@ -9,7 +9,7 @@ interface UseScrollSpyOptions {
 
 export function useScrollSpy(options: UseScrollSpyOptions = {}) {
   const { threshold = 100, throttleMs = 100 } = options;
-  
+
   const [scrollDirection, setScrollDirection] = useState<"up" | "down" | null>(null);
   const [isAtTop, setIsAtTop] = useState(true);
   const [isAtBottom, setIsAtBottom] = useState(false);
@@ -20,9 +20,9 @@ export function useScrollSpy(options: UseScrollSpyOptions = {}) {
     let ticking = false;
 
     const updateScrollInfo = () => {
-      const scrollY = window. scrollY;
+      const scrollY = window.scrollY;
       const windowHeight = window.innerHeight;
-      const documentHeight = document. documentElement.scrollHeight;
+      const documentHeight = document.documentElement.scrollHeight;
 
       // Direction
       if (Math.abs(scrollY - lastScrollY) > threshold) {
@@ -42,7 +42,7 @@ export function useScrollSpy(options: UseScrollSpyOptions = {}) {
     };
 
     const onScroll = () => {
-      if (! ticking) {
+      if (!ticking) {
         window.requestAnimationFrame(updateScrollInfo);
         ticking = true;
       }
@@ -59,7 +59,7 @@ export function useScrollSpy(options: UseScrollSpyOptions = {}) {
   }, []);
 
   const scrollToBottom = useCallback(() => {
-    window.scrollTo({ top: document. documentElement.scrollHeight, behavior: "smooth" });
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" });
   }, []);
 
   return {

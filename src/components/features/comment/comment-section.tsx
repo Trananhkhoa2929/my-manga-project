@@ -17,7 +17,7 @@ const mockComments: Comment[] = [
     userRole: "vip",
     content: "Chương này hay quá!  Main bắt đầu bá đạo rồi 🔥🔥🔥",
     likes: 234,
-    createdAt: new Date(Date.now() - 3600000). toISOString(),
+    createdAt: new Date(Date.now() - 3600000).toISOString(),
     replies: [
       {
         id: "1-1",
@@ -65,22 +65,22 @@ export function CommentSection({ chapterId }: { chapterId: string }) {
   const [comments, setComments] = useState<Comment[]>(mockComments);
   const [sortBy, setSortBy] = useState<SortType>("newest");
 
-  const sortedComments = [... comments].sort((a, b) => {
+  const sortedComments = [...comments].sort((a, b) => {
     if (sortBy === "newest") {
-      return new Date(b.createdAt). getTime() - new Date(a.createdAt).getTime();
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     }
     if (sortBy === "oldest") {
-      return new Date(a.createdAt).getTime() - new Date(b.createdAt). getTime();
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     }
-    return b.likes - a. likes;
+    return b.likes - a.likes;
   });
 
   const handleSubmit = (content: string) => {
     const newComment: Comment = {
-      id: Date. now().toString(),
+      id: Date.now().toString(),
       userId: "current-user",
       userName: "Bạn",
-      userAvatar: "https://picsum. photos/seed/me/100",
+      userAvatar: "https://picsum.photos/seed/me/100",
       userLevel: 1,
       userTitle: "Luyện Khí",
       userRole: "member",
@@ -104,11 +104,10 @@ export function CommentSection({ chapterId }: { chapterId: string }) {
             <button
               key={type}
               onClick={() => setSortBy(type)}
-              className={`rounded-md px-3 py-1 text-sm ${
-                sortBy === type
-                  ?  "bg-accent-brand text-white"
+              className={`rounded-md px-3 py-1 text-sm ${sortBy === type
+                  ? "bg-accent-brand text-white"
                   : "text-text-secondary hover:text-text-primary"
-              }`}
+                }`}
             >
               {type === "newest" ? "Mới nhất" : type === "oldest" ? "Cũ nhất" : "Top"}
             </button>
@@ -122,7 +121,7 @@ export function CommentSection({ chapterId }: { chapterId: string }) {
       {/* Comments List */}
       <div className="mt-6 space-y-4">
         {sortedComments.map((comment) => (
-          <CommentItem key={comment. id} comment={comment} />
+          <CommentItem key={comment.id} comment={comment} />
         ))}
       </div>
     </div>

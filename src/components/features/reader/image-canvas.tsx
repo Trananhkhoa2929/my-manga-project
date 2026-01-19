@@ -52,7 +52,7 @@ function LazyImage({ image, index, onVisible }: LazyImageProps) {
     );
 
     if (imgRef.current) {
-      observer. observe(imgRef. current);
+      observer.observe(imgRef.current);
     }
 
     return () => observer.disconnect();
@@ -61,7 +61,7 @@ function LazyImage({ image, index, onVisible }: LazyImageProps) {
   const handleError = () => {
     if (currentSrc === image.src && image.backupSrc) {
       // Try backup source
-      setCurrentSrc(image. backupSrc);
+      setCurrentSrc(image.backupSrc);
     } else {
       setHasError(true);
     }
@@ -76,7 +76,7 @@ function LazyImage({ image, index, onVisible }: LazyImageProps) {
   return (
     <div ref={imgRef} className="relative w-full">
       {/* Loading Skeleton */}
-      {! isLoaded && ! hasError && (
+      {!isLoaded && !hasError && (
         <Skeleton className="aspect-[2/3] w-full bg-background-surface2" />
       )}
 
@@ -93,13 +93,12 @@ function LazyImage({ image, index, onVisible }: LazyImageProps) {
       )}
 
       {/* Image */}
-      {isInView && ! hasError && (
+      {isInView && !hasError && (
         <img
           src={currentSrc}
           alt={`Trang ${image.page}`}
-          className={`w-full transition-opacity duration-300 ${
-            isLoaded ? "opacity-100" : "opacity-0"
-          }`}
+          className={`w-full transition-opacity duration-300 ${isLoaded ? "opacity-100" : "opacity-0"
+            }`}
           onLoad={() => setIsLoaded(true)}
           onError={handleError}
           loading="lazy"

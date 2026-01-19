@@ -25,7 +25,7 @@ function WebtoonCard({ comic }: { comic: Comic }) {
     <Link href={`/truyen/${comic.slug}`} className="group block">
       <div className="relative aspect-square overflow-hidden rounded-lg bg-background-surface2">
         <img
-          src={comic. thumbnail}
+          src={comic.thumbnail}
           alt={comic.title}
           className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
         />
@@ -63,11 +63,11 @@ function NettruyenCard({ comic }: { comic: Comic }) {
   return (
     <div className="group">
       <Link
-        href={`/truyen/${comic. slug}`}
+        href={`/truyen/${comic.slug}`}
         className="relative block aspect-[2/3] overflow-hidden rounded-lg bg-background-surface2"
       >
         <img
-          src={comic. thumbnail}
+          src={comic.thumbnail}
           alt={comic.title}
           className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           loading="lazy"
@@ -76,7 +76,7 @@ function NettruyenCard({ comic }: { comic: Comic }) {
         {/* Badges */}
         <div className="absolute left-2 top-2 flex flex-col gap-1">
           {comic.isHot && <Badge variant="hot">HOT</Badge>}
-          {comic. isNew && <Badge variant="new">NEW</Badge>}
+          {comic.isNew && <Badge variant="new">NEW</Badge>}
         </div>
 
         {/* Chapter Overlay */}
@@ -98,7 +98,7 @@ function NettruyenCard({ comic }: { comic: Comic }) {
         className="mt-2 block"
       >
         <h3 className="line-clamp-2 text-sm font-medium text-text-primary group-hover:text-accent-brand">
-          {comic. title}
+          {comic.title}
         </h3>
       </Link>
 
@@ -111,10 +111,10 @@ function NettruyenCard({ comic }: { comic: Comic }) {
             className="flex items-center justify-between text-xs"
           >
             <span className="text-text-secondary hover:text-accent-brand">
-              Chap {chapter. number}
+              Chap {chapter.number}
             </span>
             <span className="text-text-muted">
-              {formatTimeAgo(chapter. updatedAt)}
+              {formatTimeAgo(chapter.updatedAt)}
             </span>
           </Link>
         ))}

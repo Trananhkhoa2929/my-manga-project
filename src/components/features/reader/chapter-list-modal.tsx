@@ -23,7 +23,7 @@ export function ChapterListModal({
   const [search, setSearch] = useState("");
 
   const filteredChapters = chapters.filter((ch) =>
-    ch.number. toString().includes(search)
+    ch.number.toString().includes(search)
   );
 
   return (
@@ -48,7 +48,7 @@ export function ChapterListModal({
               type="text"
               placeholder="Nhập số chương..."
               value={search}
-              onChange={(e) => setSearch(e.target. value)}
+              onChange={(e) => setSearch(e.target.value)}
               className="pl-9"
             />
           </div>

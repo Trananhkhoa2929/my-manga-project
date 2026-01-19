@@ -11,7 +11,7 @@ interface CommentInputProps {
 
 export function CommentInput({
   onSubmit,
-  placeholder = "Viết bình luận của bạn.. .",
+  placeholder = "Viết bình luận của bạn...",
 }: CommentInputProps) {
   const [content, setContent] = useState("");
   const [showEmoji, setShowEmoji] = useState(false);
@@ -30,7 +30,7 @@ export function CommentInput({
       {/* Toolbar */}
       <div className="mb-2 flex items-center gap-1">
         <button
-          className="rounded p-1. 5 text-text-secondary hover:bg-background-surface1 hover:text-text-primary"
+          className="rounded p-1.5 text-text-secondary hover:bg-background-surface1 hover:text-text-primary"
           title="In đậm"
         >
           <Bold className="h-4 w-4" />
@@ -49,11 +49,10 @@ export function CommentInput({
         </button>
         <button
           onClick={() => setShowEmoji(!showEmoji)}
-          className={`rounded p-1.5 ${
-            showEmoji
+          className={`rounded p-1.5 ${showEmoji
               ? "bg-accent-brand text-white"
               : "text-text-secondary hover:bg-background-surface1 hover:text-text-primary"
-          }`}
+            }`}
           title="Emoji"
         >
           <Smile className="h-4 w-4" />
@@ -78,7 +77,7 @@ export function CommentInput({
       {/* Textarea */}
       <textarea
         value={content}
-        onChange={(e) => setContent(e.target. value)}
+        onChange={(e) => setContent(e.target.value)}
         placeholder={placeholder}
         className="min-h-[80px] w-full resize-none bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
       />

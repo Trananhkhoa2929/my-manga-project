@@ -90,7 +90,7 @@ export function ReaderSettings({ onClose }: ReaderSettingsProps) {
                 className={cn(
                   "flex flex-1 items-center justify-center gap-2 rounded-lg border py-3 text-sm font-medium transition-colors",
                   readMode === "paged"
-                    ?  "border-accent-brand bg-accent-brand/10 text-accent-brand"
+                    ? "border-accent-brand bg-accent-brand/10 text-accent-brand"
                     : "border-border text-text-secondary hover:border-accent-brand/50"
                 )}
               >
@@ -114,8 +114,8 @@ export function ReaderSettings({ onClose }: ReaderSettingsProps) {
                   onClick={() => setImageWidth(opt.key as typeof imageWidth)}
                   className={cn(
                     "flex-1 rounded-lg border py-2 text-sm font-medium transition-colors",
-                    imageWidth === opt. key
-                      ?  "border-accent-brand bg-accent-brand/10 text-accent-brand"
+                    imageWidth === opt.key
+                      ? "border-accent-brand bg-accent-brand/10 text-accent-brand"
                       : "border-border text-text-secondary hover:border-accent-brand/50"
                   )}
                 >

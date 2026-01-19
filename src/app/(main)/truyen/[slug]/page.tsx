@@ -10,11 +10,12 @@ import { formatNumber } from "@/lib/utils";
 import { notFound } from "next/navigation";
 
 interface Props {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }
 
-export default function ComicDetailPage({ params }: Props) {
-  const comic = getComicBySlug(params.slug);
+export default async function ComicDetailPage({ params }: Props) {
+  const { slug } = await params;
+  const comic = getComicBySlug(slug);
 
   if (!comic) {
     notFound();
@@ -42,7 +43,7 @@ export default function ComicDetailPage({ params }: Props) {
             {/* Cover Image */}
             <div className="flex-shrink-0">
               <img
-                src={comic. thumbnail}
+                src={comic.thumbnail}
                 alt={comic.title}
                 className="mx-auto h-80 w-56 rounded-lg object-cover shadow-2xl md:mx-0"
               />
@@ -51,12 +52,12 @@ export default function ComicDetailPage({ params }: Props) {
             {/* Info */}
             <div className="flex-1 text-center md:text-left">
               <h1 className="text-3xl font-bold text-text-primary">
-                {comic. title}
+                {comic.title}
               </h1>
 
               <div className="mt-3 flex flex-wrap items-center justify-center gap-2 md:justify-start">
                 {comic.genres.map((genre) => (
-                  <Link key={genre. id} href={`/tim-kiem? genre=${genre.slug}`}>
+                  <Link key={genre.id} href={`/tim-kiem?genre=${genre.slug}`}>
                     <Badge variant="default">{genre.name}</Badge>
                   </Link>
                 ))}
@@ -73,7 +74,7 @@ export default function ComicDetailPage({ params }: Props) {
                 </span>
                 <span className="flex items-center gap-1">
                   <Heart className="h-4 w-4" />
-                  {formatNumber(comic. followers)} theo dõi
+                  {formatNumber(comic.followers)} theo dõi
                 </span>
                 <span className="flex items-center gap-1">
                   <BookOpen className="h-4 w-4" />
@@ -93,7 +94,7 @@ export default function ComicDetailPage({ params }: Props) {
                       : "text-accent-brand"
                   }
                 >
-                  {comic.status === "Completed" ?  "Hoàn thành" : "Đang tiến hành"}
+                  {comic.status === "Completed" ? "Hoàn thành" : "Đang tiến hành"}
                 </span>
               </div>
 
@@ -109,7 +110,7 @@ export default function ComicDetailPage({ params }: Props) {
                     Đọc từ đầu
                   </Button>
                 </Link>
-                <Link href={`/truyen/${comic.slug}/chap/${comic.latestChapters[0]?. slug}`}>
+                <Link href={`/truyen/${comic.slug}/chap/${comic.latestChapters[0]?.slug}`}>
                   <Button variant="secondary" size="lg">
                     <Clock className="mr-2 h-5 w-5" />
                     Đọc mới nhất
