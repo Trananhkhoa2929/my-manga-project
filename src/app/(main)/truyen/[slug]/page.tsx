@@ -4,10 +4,9 @@ import { Heart, Eye, BookOpen, Clock, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ChapterList } from "@/components/features/comic/chapter-list";
-import { getComicBySlug } from "@/lib/mock-data/comics";
-import { generateChapters } from "@/lib/mock-data/chapters";
 import { formatNumber } from "@/lib/utils";
 import { notFound } from "next/navigation";
+import { db } from '@shared/lib';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -15,15 +14,69 @@ interface Props {
 
 export default async function ComicDetailPage({ params }: Props) {
   const { slug } = await params;
-  const comic = getComicBySlug(slug);
 
-  if (!comic) {
+  // Fetch series from database
+  const series = await db.series.findUnique({
+    where: { slug },
+    include: {
+      stats: true,
+      genres: { include: { genre: true } },
+    }
+  });
+
+  if (!series) {
     notFound();
   }
 
-  // Generate full chapter list
-  const latestChapterNumber = comic.latestChapters[0]?.number || 100;
-  const chapters = generateChapters(comic.id, latestChapterNumber);
+  // Fetch chapters from database
+  const chapters = await db.chapter.findMany({
+    where: { seriesId: series.id, isPublished: true },
+    orderBy: { number: 'desc' },
+    select: {
+      id: true,
+      number: true,
+      title: true,
+      slug: true,
+      createdAt: true,
+      publishedAt: true,
+    }
+  });
+
+  // Transform data to match component expectations
+  const comic = {
+    id: series.id,
+    title: series.title,
+    slug: series.slug,
+    thumbnail: series.coverUrl || '/placeholder.jpg',
+    coverImage: series.bannerUrl || series.coverUrl,
+    authors: series.author ? [series.author] : ['Unknown'],
+    status: series.status as "Ongoing" | "Completed" | "Hiatus",
+    genres: series.genres.map(g => ({
+      id: g.genre.id,
+      name: g.genre.name,
+      slug: g.genre.slug
+    })),
+    totalViews: Number(series.stats?.totalViews || 0),
+    followers: series.stats?.followersCount || 0,
+    rating: Number(series.stats?.ratingAvg || 0),
+    description: series.description || 'No description available',
+    latestChapters: chapters.slice(0, 5).map(ch => ({
+      id: ch.id,
+      number: Number(ch.number),
+      slug: ch.slug,
+      updatedAt: (ch.publishedAt || ch.createdAt).toISOString(),
+      views: 0, // TODO: Fetch from ChapterStats if needed
+    })),
+  };
+
+  // Transform chapters for ChapterList component
+  const chapterList = chapters.map(ch => ({
+    id: ch.id,
+    number: Number(ch.number),
+    slug: ch.slug,
+    updatedAt: (ch.publishedAt || ch.createdAt).toISOString(),
+    views: 0, // TODO: Fetch from ChapterStats if needed
+  }));
 
   return (
     <div>
@@ -78,7 +131,7 @@ export default async function ComicDetailPage({ params }: Props) {
                 </span>
                 <span className="flex items-center gap-1">
                   <BookOpen className="h-4 w-4" />
-                  {chapters.length} chương
+                  {chapterList.length} chương
                 </span>
               </div>
 
@@ -128,7 +181,7 @@ export default async function ComicDetailPage({ params }: Props) {
 
       {/* Chapter List */}
       <div className="container mx-auto px-4 py-8">
-        <ChapterList chapters={chapters} comicSlug={comic.slug} />
+        <ChapterList chapters={chapterList} comicSlug={comic.slug} />
       </div>
     </div>
   );
