@@ -65,7 +65,7 @@ export default async function ComicDetailPage({ params }: Props) {
       number: Number(ch.number),
       slug: ch.slug,
       updatedAt: (ch.publishedAt || ch.createdAt).toISOString(),
-      views: 0,
+      views: 0, // TODO: Fetch from ChapterStats if needed
     })),
   };
 
@@ -75,7 +75,7 @@ export default async function ComicDetailPage({ params }: Props) {
     number: Number(ch.number),
     slug: ch.slug,
     updatedAt: (ch.publishedAt || ch.createdAt).toISOString(),
-    views: 0,
+    views: 0, // TODO: Fetch from ChapterStats if needed
   }));
 
   return (

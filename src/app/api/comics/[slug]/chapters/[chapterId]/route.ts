@@ -31,7 +31,7 @@ export async function GET(request: Request, props: RouteParams) {
 
         // Find chapter
         // Try finding by slug first (assuming chapterId param might be a slug)
-        let chapter = await db.chapter.findFirst({
+        const chapter = await db.chapter.findFirst({
             where: {
                 seriesId: series.id,
                 slug: chapterId

@@ -52,10 +52,10 @@ export async function loginAction(values: z.infer<typeof LoginSchema>) {
                     return { error: "Something went wrong!" };
             }
         }
-        // Re-throw redirect errors (NextAuth uses this for redirects)
+        // Re-throw redirect errors (NextAuth uses NEXT_REDIRECT for successful redirects)
         throw error;
     }
-    // Redirect will happen, so this won't be reached
+    // If no redirect occurred (edge case), return success
     return { success: "Logged in!" };
 }
 
