@@ -1,14 +1,10 @@
 "use client";
 
-// ===========================================
-// HERO SPOTLIGHT - Featured Manga Slider
-// Premium animated hero section
-// ===========================================
-
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Star, Eye, BookOpen, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { api } from "@shared/api";
 
 interface FeaturedManga {
     id: string;
@@ -24,72 +20,83 @@ interface FeaturedManga {
     isHot?: boolean;
 }
 
-// Mock featured manga
-const FEATURED_MANGA: FeaturedManga[] = [
-    {
-        id: "1",
-        title: "Tower of God",
-        description: "Câu chuyện về chàng trai Bam và hành trình chinh phục Tháp Thần để tìm lại người con gái anh yêu. Một thế giới kỳ bí với những bí ẩn chờ được khám phá.",
-        coverImage: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400&q=80",
-        bannerImage: "https://images.unsplash.com/photo-1560972550-aba3456b5564?w=1400&q=80",
-        rating: 9.2,
-        views: 15600000,
-        chapters: 580,
-        genres: ["Fantasy", "Action", "Adventure"],
-        isHot: true,
-    },
-    {
-        id: "2",
-        title: "Solo Leveling",
-        description: "Sung Jin-Woo, từ một thợ săn hạng E yếu nhất, trở thành thợ săn mạnh nhất thế giới sau khi nhận được sức mạnh bí ẩn từ hệ thống.",
-        coverImage: "https://images.unsplash.com/photo-1613376023733-0a73315d9b06?w=400&q=80",
-        bannerImage: "https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?w=1400&q=80",
-        rating: 9.5,
-        views: 25000000,
-        chapters: 200,
-        genres: ["Action", "Fantasy", "Martial Arts"],
-        isHot: true,
-    },
-    {
-        id: "3",
-        title: "The Beginning After The End",
-        description: "Vua Arthur Leywin được tái sinh vào một thế giới mới đầy phép thuật. Liệu anh có thể thay đổi số phận bi thảm của kiếp trước?",
-        coverImage: "https://images.unsplash.com/photo-1612178991541-b48cc8e92a4d?w=400&q=80",
-        bannerImage: "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=1400&q=80",
-        rating: 9.0,
-        views: 12000000,
-        chapters: 420,
-        genres: ["Fantasy", "Isekai", "Magic"],
-        isNew: true,
-    },
-];
-
 export function HeroSpotlight() {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isAutoPlaying, setIsAutoPlaying] = useState(true);
+    const [featuredManga, setFeaturedManga] = useState<FeaturedManga[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchFeatured = async () => {
+            try {
+                const response = await api.get<{ data: any[] }>('/comics?sort=views&limit=5');
+                const data = response.data.data.map((comic: any) => ({
+                    id: comic.id,
+                    title: comic.title,
+                    description: comic.description || 'Khám phá câu chuyện hấp dẫn này ngay!',
+                    coverImage: comic.thumbnail,
+                    bannerImage: comic.coverImage,
+                    rating: comic.rating || 0,
+                    views: comic.totalViews || 0,
+                    chapters: comic.chaptersCount || 0,
+                    genres: comic.genres?.map((g: any) => g.name) || [],
+                    isHot: (comic.totalViews || 0) > 10000,
+                    isNew: new Date(comic.lastUpdated).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000,
+                }));
+                setFeaturedManga(data);
+            } catch (error) {
+                console.error('Failed to fetch featured manga:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchFeatured();
+    }, []);
 
     const nextSlide = useCallback(() => {
-        setCurrentIndex((prev) => (prev + 1) % FEATURED_MANGA.length);
-    }, []);
+        if (featuredManga.length === 0) return;
+        setCurrentIndex((prev) => (prev + 1) % featuredManga.length);
+    }, [featuredManga.length]);
 
     const prevSlide = useCallback(() => {
-        setCurrentIndex((prev) => (prev - 1 + FEATURED_MANGA.length) % FEATURED_MANGA.length);
-    }, []);
+        if (featuredManga.length === 0) return;
+        setCurrentIndex((prev) => (prev - 1 + featuredManga.length) % featuredManga.length);
+    }, [featuredManga.length]);
 
     // Auto-play
     useEffect(() => {
-        if (!isAutoPlaying) return;
+        if (!isAutoPlaying || featuredManga.length === 0) return;
         const timer = setInterval(nextSlide, 6000);
         return () => clearInterval(timer);
-    }, [isAutoPlaying, nextSlide]);
-
-    const currentManga = FEATURED_MANGA[currentIndex];
+    }, [isAutoPlaying, nextSlide, featuredManga.length]);
 
     const formatViews = (views: number) => {
         if (views >= 1000000) return `${(views / 1000000).toFixed(1)}M`;
         if (views >= 1000) return `${(views / 1000).toFixed(0)}K`;
         return views.toString();
     };
+
+    if (loading) {
+        return (
+            <section className="relative overflow-hidden bg-gradient-to-b from-background-base to-background-surface1 h-[500px] flex items-center justify-center">
+                <div className="animate-pulse text-text-muted">Đang tải...</div>
+            </section>
+        );
+    }
+
+    if (featuredManga.length === 0) {
+        return (
+            <section className="relative overflow-hidden bg-gradient-to-b from-background-base to-background-surface1">
+                <div className="container mx-auto px-4 py-16 lg:py-24 text-center">
+                    <Sparkles className="h-12 w-12 text-purple-400 mx-auto mb-4" />
+                    <h2 className="text-2xl font-bold text-white mb-2">Chưa có truyện nổi bật</h2>
+                    <p className="text-gray-400">Thêm truyện vào database để hiển thị ở đây</p>
+                </div>
+            </section>
+        );
+    }
+
+    const currentManga = featuredManga[currentIndex];
 
     return (
         <section className="relative overflow-hidden bg-gradient-to-b from-background-base to-background-surface1">
@@ -138,7 +145,7 @@ export function HeroSpotlight() {
                             {/* Rating Badge */}
                             <div className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 backdrop-blur-sm">
                                 <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                                <span className="text-sm font-bold text-white">{currentManga.rating}</span>
+                                <span className="text-sm font-bold text-white">{currentManga.rating.toFixed(1)}</span>
                             </div>
                         </div>
                         {/* Glow Effect */}
@@ -162,7 +169,7 @@ export function HeroSpotlight() {
 
                         {/* Genres */}
                         <div className="mb-4 flex flex-wrap justify-center gap-2 lg:justify-start">
-                            {currentManga.genres.map((genre) => (
+                            {currentManga.genres.slice(0, 4).map((genre) => (
                                 <span
                                     key={genre}
                                     className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-sm text-white/80 backdrop-blur-sm"
@@ -174,7 +181,7 @@ export function HeroSpotlight() {
 
                         {/* Description */}
                         <p className="mb-6 max-w-xl text-lg leading-relaxed text-gray-300 lg:text-xl">
-                            {currentManga.description}
+                            {currentManga.description.slice(0, 200)}...
                         </p>
 
                         {/* Stats */}
@@ -213,39 +220,41 @@ export function HeroSpotlight() {
                 </div>
 
                 {/* Navigation */}
-                <div className="mt-12 flex items-center justify-center gap-6">
-                    {/* Prev Button */}
-                    <button
-                        onClick={prevSlide}
-                        className="rounded-full bg-white/10 p-3 text-white backdrop-blur-sm transition-all hover:bg-white/20"
-                    >
-                        <ChevronLeft className="h-6 w-6" />
-                    </button>
+                {featuredManga.length > 1 && (
+                    <div className="mt-12 flex items-center justify-center gap-6">
+                        {/* Prev Button */}
+                        <button
+                            onClick={prevSlide}
+                            className="rounded-full bg-white/10 p-3 text-white backdrop-blur-sm transition-all hover:bg-white/20"
+                        >
+                            <ChevronLeft className="h-6 w-6" />
+                        </button>
 
-                    {/* Dots */}
-                    <div className="flex gap-3">
-                        {FEATURED_MANGA.map((_, index) => (
-                            <button
-                                key={index}
-                                onClick={() => setCurrentIndex(index)}
-                                className={cn(
-                                    "h-2 rounded-full transition-all duration-300",
-                                    index === currentIndex
-                                        ? "w-8 bg-gradient-to-r from-purple-500 to-pink-500"
-                                        : "w-2 bg-white/30 hover:bg-white/50"
-                                )}
-                            />
-                        ))}
+                        {/* Dots */}
+                        <div className="flex gap-3">
+                            {featuredManga.map((_, index) => (
+                                <button
+                                    key={index}
+                                    onClick={() => setCurrentIndex(index)}
+                                    className={cn(
+                                        "h-2 rounded-full transition-all duration-300",
+                                        index === currentIndex
+                                            ? "w-8 bg-gradient-to-r from-purple-500 to-pink-500"
+                                            : "w-2 bg-white/30 hover:bg-white/50"
+                                    )}
+                                />
+                            ))}
+                        </div>
+
+                        {/* Next Button */}
+                        <button
+                            onClick={nextSlide}
+                            className="rounded-full bg-white/10 p-3 text-white backdrop-blur-sm transition-all hover:bg-white/20"
+                        >
+                            <ChevronRight className="h-6 w-6" />
+                        </button>
                     </div>
-
-                    {/* Next Button */}
-                    <button
-                        onClick={nextSlide}
-                        className="rounded-full bg-white/10 p-3 text-white backdrop-blur-sm transition-all hover:bg-white/20"
-                    >
-                        <ChevronRight className="h-6 w-6" />
-                    </button>
-                </div>
+                )}
             </div>
         </section>
     );

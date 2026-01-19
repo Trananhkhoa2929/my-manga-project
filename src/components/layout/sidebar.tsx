@@ -1,19 +1,42 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Trophy, Clock, TrendingUp, X, Crown, Medal, Award, Sparkles } from "lucide-react";
-import { getTopComics } from "@/lib/mock-data/comics";
 import { formatNumber } from "@/lib/utils";
 import { useReadingHistory } from "@/hooks/use-reading-history";
 import { cn } from "@/lib/utils";
+import { api } from "@shared/api";
+
+interface TopComic {
+  id: string;
+  title: string;
+  slug: string;
+  thumbnail: string;
+  totalViews: number;
+}
 
 type RankingTab = "day" | "week" | "month";
 
 export function Sidebar() {
   const [activeTab, setActiveTab] = useState<RankingTab>("day");
   const { history, removeFromHistory, clearHistory } = useReadingHistory();
-  const topComics = getTopComics(10);
+  const [topComics, setTopComics] = useState<TopComic[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchTopComics = async () => {
+      try {
+        const response = await api.get<{ data: TopComic[] }>('/comics?sort=views&limit=10');
+        setTopComics(response.data.data);
+      } catch (error) {
+        console.error('Failed to fetch top comics:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTopComics();
+  }, []);
 
   const tabs: { key: RankingTab; label: string; icon: React.ReactNode }[] = [
     { key: "day", label: "Ngày", icon: "📅" },
@@ -136,48 +159,65 @@ export function Sidebar() {
 
         {/* Ranking List */}
         <div className="p-4 space-y-2">
-          {topComics.map((comic, index) => (
-            <Link
-              key={comic.id}
-              href={`/truyen/${comic.slug}`}
-              className="group flex items-center gap-3 rounded-xl p-2 transition-all hover:bg-background-surface2"
-            >
-              {/* Rank Badge */}
-              <div
-                className={cn(
-                  "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-sm font-bold",
-                  getRankStyle(index)
-                )}
+          {loading ? (
+            [...Array(5)].map((_, i) => (
+              <div key={i} className="flex items-center gap-3 p-2 animate-pulse">
+                <div className="h-8 w-8 rounded-lg bg-background-surface2" />
+                <div className="h-12 w-10 rounded-lg bg-background-surface2" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-3/4 rounded bg-background-surface2" />
+                  <div className="h-3 w-1/2 rounded bg-background-surface2" />
+                </div>
+              </div>
+            ))
+          ) : topComics.length === 0 ? (
+            <div className="text-center py-8 text-text-muted">
+              <p>Chưa có truyện nào</p>
+            </div>
+          ) : (
+            topComics.map((comic, index) => (
+              <Link
+                key={comic.id}
+                href={`/truyen/${comic.slug}`}
+                className="group flex items-center gap-3 rounded-xl p-2 transition-all hover:bg-background-surface2"
               >
-                {index < 3 ? (
-                  getRankIcon(index)
-                ) : (
-                  index + 1
-                )}
-              </div>
+                {/* Rank Badge */}
+                <div
+                  className={cn(
+                    "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-sm font-bold",
+                    getRankStyle(index)
+                  )}
+                >
+                  {index < 3 ? (
+                    getRankIcon(index)
+                  ) : (
+                    index + 1
+                  )}
+                </div>
 
-              {/* Thumbnail */}
-              <div className="relative h-12 w-10 flex-shrink-0 overflow-hidden rounded-lg shadow-md">
-                <img
-                  src={comic.thumbnail}
-                  alt={comic.title}
-                  className="h-full w-full object-cover transition-transform group-hover:scale-110"
-                />
-              </div>
+                {/* Thumbnail */}
+                <div className="relative h-12 w-10 flex-shrink-0 overflow-hidden rounded-lg shadow-md">
+                  <img
+                    src={comic.thumbnail}
+                    alt={comic.title}
+                    className="h-full w-full object-cover transition-transform group-hover:scale-110"
+                  />
+                </div>
 
-              {/* Info */}
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-text-primary transition-colors group-hover:text-accent-brand">
-                  {comic.title}
-                </p>
-                <p className="flex items-center gap-1.5 text-xs text-text-muted">
-                  <TrendingUp className="h-3 w-3 text-green-400" />
-                  <span className="text-green-400 font-medium">{formatNumber(comic.totalViews)}</span>
-                  <span>lượt xem</span>
-                </p>
-              </div>
-            </Link>
-          ))}
+                {/* Info */}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-text-primary transition-colors group-hover:text-accent-brand">
+                    {comic.title}
+                  </p>
+                  <p className="flex items-center gap-1.5 text-xs text-text-muted">
+                    <TrendingUp className="h-3 w-3 text-green-400" />
+                    <span className="text-green-400 font-medium">{formatNumber(comic.totalViews)}</span>
+                    <span>lượt xem</span>
+                  </p>
+                </div>
+              </Link>
+            ))
+          )}
         </div>
       </div>
     </aside>

@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { Search, Filter, X, Check, Minus } from "lucide-react";
+import React, { useState, useEffect, useMemo } from "react";
+import { Search, Filter, X, Check } from "lucide-react";
 import { ComicCard } from "@/components/features/comic/comic-card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { comics } from "@/lib/mock-data/comics";
 import { GENRES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { api } from "@shared/api";
+import { Comic } from "@/lib/types";
 
 type FilterState = "include" | "exclude" | "none";
 type SortOption = "latest" | "views" | "followers" | "rating";
@@ -18,6 +19,33 @@ export default function SearchPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<SortOption>("latest");
   const [showFilters, setShowFilters] = useState(true);
+  const [comics, setComics] = useState<Comic[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch comics from API
+  useEffect(() => {
+    const fetchComics = async () => {
+      try {
+        setLoading(true);
+        let url = `/comics?sort=${sortBy}&limit=100`;
+        if (searchQuery) {
+          url += `&q=${encodeURIComponent(searchQuery)}`;
+        }
+        if (statusFilter !== "all") {
+          url += `&status=${statusFilter}`;
+        }
+        const response = await api.get<{ data: Comic[] }>(url);
+        setComics(response.data.data);
+      } catch (error) {
+        console.error('Failed to fetch comics:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const debounce = setTimeout(fetchComics, 300);
+    return () => clearTimeout(debounce);
+  }, [searchQuery, sortBy, statusFilter]);
 
   // Toggle genre filter (tri-state: none -> include -> exclude -> none)
   const toggleGenreFilter = (genreId: string) => {
@@ -32,7 +60,7 @@ export default function SearchPage() {
         const { [genreId]: _, ...rest } = prev;
         return rest;
       }
-      return { ... prev, [genreId]: next };
+      return { ...prev, [genreId]: next };
     });
   };
 
@@ -48,21 +76,11 @@ export default function SearchPage() {
     return "bg-background-surface2 text-text-secondary border-border hover:border-text-muted";
   };
 
-  // Filter and sort comics
+  // Client-side genre filtering
   const filteredComics = useMemo(() => {
-    let result = [... comics];
+    let result = [...comics];
 
-    // Search query
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(
-        (comic) =>
-          comic.title.toLowerCase().includes(query) ||
-          comic.authors.some((a) => a.toLowerCase().includes(query))
-      );
-    }
-
-    // Genre filters
+    // Genre filters (client-side for now)
     const includeGenres = Object.entries(genreFilters)
       .filter(([_, state]) => state === "include")
       .map(([id]) => id);
@@ -73,45 +91,21 @@ export default function SearchPage() {
     if (includeGenres.length > 0) {
       result = result.filter((comic) =>
         includeGenres.every((genreId) =>
-          comic.genres.some((g) => g. id === genreId)
+          comic.genres?.some((g) => g.id === genreId || g.slug === genreId)
         )
       );
     }
 
     if (excludeGenres.length > 0) {
-      result = result. filter((comic) =>
-        ! excludeGenres. some((genreId) =>
-          comic. genres.some((g) => g.id === genreId)
+      result = result.filter((comic) =>
+        !excludeGenres.some((genreId) =>
+          comic.genres?.some((g) => g.id === genreId || g.slug === genreId)
         )
       );
     }
 
-    // Status filter
-    if (statusFilter !== "all") {
-      result = result.filter((comic) => comic.status === statusFilter);
-    }
-
-    // Sort
-    switch (sortBy) {
-      case "views":
-        result. sort((a, b) => b.totalViews - a. totalViews);
-        break;
-      case "followers":
-        result.sort((a, b) => b.followers - a.followers);
-        break;
-      case "rating":
-        result.sort((a, b) => b.rating - a. rating);
-        break;
-      case "latest":
-      default:
-        result.sort(
-          (a, b) =>
-            new Date(b. lastUpdated).getTime() - new Date(a.lastUpdated). getTime()
-        );
-    }
-
     return result;
-  }, [searchQuery, genreFilters, statusFilter, sortBy]);
+  }, [comics, genreFilters]);
 
   const clearFilters = () => {
     setGenreFilters({});
@@ -135,7 +129,7 @@ export default function SearchPage() {
         <aside
           className={cn(
             "w-full shrink-0 lg:w-72",
-            ! showFilters && "hidden lg:block"
+            !showFilters && "hidden lg:block"
           )}
         >
           <div className="sticky top-20 space-y-6 rounded-lg bg-background-surface1 p-4">
@@ -150,7 +144,7 @@ export default function SearchPage() {
                   type="text"
                   placeholder="Nhập từ khóa..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e. target.value)}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9"
                 />
               </div>
@@ -166,13 +160,13 @@ export default function SearchPage() {
               </p>
               <div className="flex flex-wrap gap-2">
                 {GENRES.map((genre) => {
-                  const state = genreFilters[genre. id] || "none";
+                  const state = genreFilters[genre.id] || "none";
                   return (
                     <button
                       key={genre.id}
                       onClick={() => toggleGenreFilter(genre.id)}
                       className={cn(
-                        "inline-flex items-center gap-1 rounded-full border px-3 py-1. 5 text-xs font-medium transition-colors",
+                        "inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
                         getFilterColor(state)
                       )}
                     >
@@ -192,16 +186,16 @@ export default function SearchPage() {
               <div className="flex flex-wrap gap-2">
                 {[
                   { key: "all", label: "Tất cả" },
-                  { key: "Ongoing", label: "Đang tiến hành" },
-                  { key: "Completed", label: "Hoàn thành" },
+                  { key: "ONGOING", label: "Đang tiến hành" },
+                  { key: "COMPLETED", label: "Hoàn thành" },
                 ].map((opt) => (
                   <button
-                    key={opt. key}
+                    key={opt.key}
                     onClick={() => setStatusFilter(opt.key)}
                     className={cn(
                       "rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
-                      statusFilter === opt. key
-                        ?  "border-accent-brand bg-accent-brand/10 text-accent-brand"
+                      statusFilter === opt.key
+                        ? "border-accent-brand bg-accent-brand/10 text-accent-brand"
                         : "border-border text-text-secondary hover:border-accent-brand/50"
                     )}
                   >
@@ -258,12 +252,21 @@ export default function SearchPage() {
           {/* Results Header */}
           <div className="mb-4 hidden items-center justify-between lg:flex">
             <h2 className="text-lg font-semibold text-text-primary">
-              Kết quả ({filteredComics. length} truyện)
+              Kết quả ({filteredComics.length} truyện)
             </h2>
           </div>
 
           {/* Results Grid */}
-          {filteredComics. length > 0 ? (
+          {loading ? (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+              {[...Array(12)].map((_, i) => (
+                <div key={i} className="animate-pulse">
+                  <div className="aspect-[3/4] rounded-lg bg-background-surface2" />
+                  <div className="mt-2 h-4 rounded bg-background-surface2" />
+                </div>
+              ))}
+            </div>
+          ) : filteredComics.length > 0 ? (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
               {filteredComics.map((comic) => (
                 <ComicCard key={comic.id} comic={comic} variant="nettruyen" />

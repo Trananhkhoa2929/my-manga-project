@@ -1,236 +1,254 @@
-import { PrismaClient, UserRole, SeriesType, SeriesStatus, Visibility, PageStatus } from '@prisma/client';
+/**
+ * MangaHub Database Seed Script
+ * 
+ * Hướng dẫn sử dụng:
+ * 1. Chạy Docker: docker-compose -f docker-compose.dev.yml up -d postgres
+ * 2. Chạy migration: npx prisma db push
+ * 3. Chỉnh sửa data bên dưới theo truyện bạn muốn thêm
+ * 4. Chạy seed: npx prisma db seed
+ * 
+ * Cấu trúc data giống như các trang truyện tranh như Webtoon, Nettruyen:
+ * - Genres (thể loại): Action, Fantasy, Romance, ...
+ * - Series (bộ truyện): Có title, cover, author, description, ...
+ * - Chapters (chương): Mỗi bộ truyện có nhiều chương
+ * - Pages (trang): Mỗi chương có nhiều trang ảnh
+ */
+
+import { PrismaClient, SeriesStatus, SeriesType, Visibility, PageStatus } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+// ============================================
+// STEP 1: Định nghĩa các thể loại (Genres)
+// ============================================
+const genres = [
+    { name: 'Action', slug: 'action', description: 'Truyện hành động, chiến đấu' },
+    { name: 'Fantasy', slug: 'fantasy', description: 'Truyện thế giới phép thuật, kỳ ảo' },
+    { name: 'Romance', slug: 'romance', description: 'Truyện tình cảm, lãng mạn' },
+    { name: 'Comedy', slug: 'comedy', description: 'Truyện hài hước' },
+    { name: 'Drama', slug: 'drama', description: 'Truyện kịch tính, cảm xúc' },
+    { name: 'Horror', slug: 'horror', description: 'Truyện kinh dị' },
+    { name: 'Slice of Life', slug: 'slice-of-life', description: 'Truyện đời thường' },
+    { name: 'Martial Arts', slug: 'martial-arts', description: 'Truyện võ thuật' },
+    { name: 'Isekai', slug: 'isekai', description: 'Truyện xuyên không' },
+    { name: 'Adventure', slug: 'adventure', description: 'Truyện phiêu lưu' },
+    { name: 'Manhwa', slug: 'manhwa', description: 'Truyện tranh Hàn Quốc' },
+    { name: 'Manhua', slug: 'manhua', description: 'Truyện tranh Trung Quốc' },
+    { name: 'Manga', slug: 'manga', description: 'Truyện tranh Nhật Bản' },
+    { name: 'School Life', slug: 'school-life', description: 'Truyện học đường' },
+    { name: 'Supernatural', slug: 'supernatural', description: 'Truyện siêu nhiên' },
+];
+
+// ============================================
+// STEP 2: Định nghĩa các bộ truyện (Series)
+// Thay đổi data ở đây theo truyện bạn muốn thêm
+// ============================================
+const seriesList = [
+    {
+        title: 'Solo Leveling',
+        slug: 'solo-leveling',
+        type: SeriesType.MANHWA,
+        status: SeriesStatus.COMPLETED,
+        country: 'KR',
+        author: 'Chugong',
+        artist: 'DUBU',
+        description: 'Sung Jin-Woo, một thợ săn E-rank yếu nhất, nhận được hệ thống bí ẩn cho phép anh trở nên mạnh mẽ hơn bất kỳ ai. Anh là thợ săn duy nhất có khả năng level up.',
+        coverUrl: 'https://example.com/solo-leveling-cover.jpg', // Thay bằng URL ảnh thật
+        bannerUrl: 'https://example.com/solo-leveling-banner.jpg',
+        genres: ['action', 'fantasy', 'manhwa'],
+        chapters: [
+            { number: 1, title: 'Thợ Săn Yếu Nhất', pages: 25 },
+            { number: 2, title: 'Cổng Ngầm', pages: 22 },
+            { number: 3, title: 'Sự Thức Tỉnh', pages: 28 },
+        ],
+    },
+    {
+        title: 'Tower of God',
+        slug: 'tower-of-god',
+        type: SeriesType.MANHWA,
+        status: SeriesStatus.ONGOING,
+        country: 'KR',
+        author: 'SIU',
+        artist: 'SIU',
+        description: 'Baam leo lên Tháp để tìm Rachel, người bạn duy nhất của anh. Trên hành trình, anh gặp vô số thử thách và bí ẩn.',
+        coverUrl: 'https://example.com/tower-of-god-cover.jpg',
+        genres: ['fantasy', 'adventure', 'manhwa'],
+        chapters: [
+            { number: 1, title: 'Bóng Tối', pages: 30 },
+            { number: 2, title: 'Bước Vào Tháp', pages: 28 },
+        ],
+    },
+    {
+        title: 'Võ Luyện Đỉnh Phong',
+        slug: 'vo-luyen-dinh-phong',
+        type: SeriesType.MANHUA,
+        status: SeriesStatus.ONGOING,
+        country: 'CN',
+        author: 'Momo',
+        description: 'Một thanh niên bước vào con đường võ đạo, từng bước một leo lên đỉnh cao của võ học.',
+        coverUrl: 'https://example.com/vo-luyen-cover.jpg',
+        genres: ['action', 'martial-arts', 'manhua'],
+        chapters: [
+            { number: 1, title: 'Khởi Đầu', pages: 20 },
+        ],
+    },
+];
+
+// ============================================
+// MAIN SEED FUNCTION
+// ============================================
 async function main() {
-    console.log('🌱 Starting seed...');
+    console.log('🌱 Bắt đầu seed database...');
 
-    // 1. Clean up existing data (optional, be careful in prod)
-    await prisma.page.deleteMany();
-    await prisma.chapter.deleteMany();
-    await prisma.series.deleteMany();
-    await prisma.user.deleteMany();
-    await prisma.genre.deleteMany();
-
-    // 2. Seed Genres
-    const genres = [
-        { name: 'Action', slug: 'action', description: 'Action-packed adventures' },
-        { name: 'Adventure', slug: 'adventure', description: 'Exciting journeys' },
-        { name: 'Comedy', slug: 'comedy', description: 'Funny stories' },
-        { name: 'Drama', slug: 'drama', description: 'Emotional stories' },
-        { name: 'Fantasy', slug: 'fantasy', description: 'Magic and supernatural' },
-        { name: 'Isekai', slug: 'isekai', description: 'Transferred to another world' },
-        { name: 'Romance', slug: 'romance', description: 'Love stories' },
-        { name: 'Slice of Life', slug: 'slice-of-life', description: 'Daily life stories' },
-        { name: 'Sci-Fi', slug: 'sci-fi', description: 'Science fiction' },
-        { name: 'Horror', slug: 'horror', description: 'Scary stories' },
-        { name: 'Mystery', slug: 'mystery', description: 'Solving mysteries' },
-        { name: 'Psychological', slug: 'psychological', description: 'Psychological mind games' },
-    ];
-
-    console.log(`Creating ${genres.length} genres...`);
-    for (const g of genres) {
+    // 1. Tạo Genres
+    console.log('📚 Tạo thể loại...');
+    for (const genre of genres) {
         await prisma.genre.upsert({
-            where: { slug: g.slug },
+            where: { slug: genre.slug },
             update: {},
-            create: g,
+            create: genre,
         });
     }
+    console.log(`   ✅ Đã tạo ${genres.length} thể loại`);
 
-    // 3. Seed Users
-    const adminEmail = 'admin@mangahub.com';
-    const admin = await prisma.user.upsert({
-        where: { email: adminEmail },
-        update: {},
-        create: {
-            email: adminEmail,
-            username: 'admin',
-            role: UserRole.ADMIN,
-            // displayName: 'System Admin', // Note: This field is in UserProfile in schema, but User model doesn't have it directly. Wait, let me check schema.
-            // Schema: User has displayName checks? No, User has relation to UserProfile.
-            // Need to create profile separately or via nested write.
-            profile: {
-                create: {
-                    displayName: 'System Admin',
-                    bio: 'The verify boss of MangaHub',
-                    avatarUrl: 'https://github.com/shadcn.png',
-                }
+    // 2. Tạo Series
+    console.log('📖 Tạo bộ truyện...');
+    for (const series of seriesList) {
+        // Get genre IDs
+        const genreRecords = await prisma.genre.findMany({
+            where: { slug: { in: series.genres } },
+        });
+
+        // Create series
+        const createdSeries = await prisma.series.upsert({
+            where: { slug: series.slug },
+            update: {
+                title: series.title,
+                description: series.description,
+                coverUrl: series.coverUrl,
+                bannerUrl: series.bannerUrl,
+                author: series.author,
+                status: series.status,
             },
-            wallet: {
-                create: {
-                    balance: 1000000,
-                    currency: 'COIN'
-                }
-            }
-        },
-    });
-    console.log('Created Admin:', admin.username);
-
-    const uploaderEmail = 'uploader@mangahub.com';
-    const uploader = await prisma.user.upsert({
-        where: { email: uploaderEmail },
-        update: {},
-        create: {
-            email: uploaderEmail,
-            username: 'uploader_san',
-            role: UserRole.UPLOADER,
-            profile: {
-                create: {
-                    displayName: 'Uploader San',
-                    bio: 'I upload fast!',
-                    avatarUrl: 'https://github.com/shadcn.png',
-                }
-            }
-        },
-    });
-
-    // 4. Seed Series
-    // Series A: One Piece (Manga)
-    const onePiece = await prisma.series.upsert({
-        where: { slug: 'one-piece' },
-        update: {},
-        create: {
-            title: 'One Piece',
-            titleOriginal: 'ワンピース',
-            slug: 'one-piece',
-            type: SeriesType.MANGA,
-            status: SeriesStatus.ONGOING,
-            author: 'Eiichiro Oda',
-            artist: 'Eiichiro Oda',
-            description: 'Monkey D. Luffy refuses to let anyone or anything stand in the way of his quest to become the King of All Pirates.',
-            coverUrl: 'https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx30013-oXTM246e7fKq.jpg', // Placeholder
-            bannerUrl: 'https://s4.anilist.co/file/anilistcdn/media/manga/banner/30013-7A39j13jK13j.jpg',
-            uploaderId: uploader.id,
-            visibility: Visibility.PUBLIC,
-            genres: {
-                create: [
-                    { genre: { connect: { slug: 'action' } } },
-                    { genre: { connect: { slug: 'adventure' } } },
-                    { genre: { connect: { slug: 'fantasy' } } },
-                ]
+            create: {
+                title: series.title,
+                slug: series.slug,
+                type: series.type,
+                status: series.status,
+                country: series.country,
+                author: series.author,
+                artist: series.artist,
+                description: series.description,
+                coverUrl: series.coverUrl,
+                bannerUrl: series.bannerUrl,
+                visibility: Visibility.PUBLIC,
+                publishedAt: new Date(),
             },
-            stats: {
-                create: {
-                    totalViews: 1000500,
-                    ratingAvg: 4.9,
-                    followersCount: 5000,
-                }
-            }
-        },
-    });
-    console.log('Created Series:', onePiece.title);
+        });
 
-    // Series B: Solo Leveling (Manhwa)
-    const soloLeveling = await prisma.series.upsert({
-        where: { slug: 'solo-leveling' },
-        update: {},
-        create: {
-            title: 'Solo Leveling',
-            titleOriginal: '나 혼자만 레벨업',
-            slug: 'solo-leveling',
-            type: SeriesType.MANHWA,
-            status: SeriesStatus.COMPLETED,
-            author: 'Chugong',
-            artist: 'Dubu (Redice Studio)',
-            description: 'In a world where hunters, humans who possess magical abilities, must battle deadly monsters to protect the human race from certain annihilation.',
-            uploaderId: uploader.id,
-            visibility: Visibility.PUBLIC,
-            genres: {
-                create: [
-                    { genre: { connect: { slug: 'action' } } },
-                    { genre: { connect: { slug: 'fantasy' } } },
-                ]
-            },
-            stats: {
+        // Link genres
+        for (const genre of genreRecords) {
+            await prisma.seriesGenre.upsert({
+                where: {
+                    seriesId_genreId: {
+                        seriesId: createdSeries.id,
+                        genreId: genre.id,
+                    },
+                },
+                update: {},
                 create: {
-                    totalViews: 2500000,
-                    ratingAvg: 4.8,
-                    followersCount: 8000,
-                }
-            }
-        },
-    });
-    console.log('Created Series:', soloLeveling.title);
-
-    // 5. Seed Chapters & Pages
-    // Chapter 1 of One Piece
-    const opCh1 = await prisma.chapter.upsert({
-        where: {
-            seriesId_number_language: {
-                seriesId: onePiece.id,
-                number: 1,
-                language: 'vi'
-            }
-        },
-        update: {},
-        create: {
-            seriesId: onePiece.id,
-            number: 1,
-            title: 'Romance Dawn',
-            slug: 'one-piece-chapter-1',
-            pagesCount: 5,
-            isPublished: true,
-            uploaderId: uploader.id,
-            pages: {
-                create: [
-                    { pageNumber: 1, imagePath: 'https://dummyimage.com/800x1200/2a2a2a/ffffff&text=OP+Ch1+Page+1', width: 800, height: 1200, status: PageStatus.CLEANED },
-                    { pageNumber: 2, imagePath: 'https://dummyimage.com/800x1200/2a2a2a/ffffff&text=OP+Ch1+Page+2', width: 800, height: 1200, status: PageStatus.CLEANED },
-                    { pageNumber: 3, imagePath: 'https://dummyimage.com/800x1200/2a2a2a/ffffff&text=OP+Ch1+Page+3', width: 800, height: 1200, status: PageStatus.CLEANED },
-                    { pageNumber: 4, imagePath: 'https://dummyimage.com/800x1200/2a2a2a/ffffff&text=OP+Ch1+Page+4', width: 800, height: 1200, status: PageStatus.CLEANED },
-                    { pageNumber: 5, imagePath: 'https://dummyimage.com/800x1200/2a2a2a/ffffff&text=OP+Ch1+Page+5', width: 800, height: 1200, status: PageStatus.CLEANED },
-                ]
-            }
+                    seriesId: createdSeries.id,
+                    genreId: genre.id,
+                },
+            });
         }
-    });
-    console.log('Created Chapter:', opCh1.slug);
 
-    // 6. Seed Stress Test Series (Test 100+ images)
-    const stressSeries = await prisma.series.upsert({
-        where: { slug: 'stress-test-series' },
-        update: {},
-        create: {
-            title: 'Performance Test Series (100+ Pages)',
-            slug: 'stress-test-series',
-            type: SeriesType.MANGA,
-            status: SeriesStatus.COMPLETED,
-            author: 'Bot',
-            artist: 'Bot',
-            description: 'A series to test viewer performance with many pages.',
-            coverUrl: 'https://dummyimage.com/300x450/2a2a2a/ffffff&text=Stress+Test',
-            uploaderId: uploader.id,
-            visibility: Visibility.PUBLIC,
-            chapters: {
+        // Create series stats
+        await prisma.seriesStats.upsert({
+            where: { seriesId: createdSeries.id },
+            update: {},
+            create: {
+                seriesId: createdSeries.id,
+                totalViews: BigInt(Math.floor(Math.random() * 1000000)),
+                weeklyViews: Math.floor(Math.random() * 50000),
+                monthlyViews: Math.floor(Math.random() * 200000),
+                followersCount: Math.floor(Math.random() * 10000),
+                chaptersCount: series.chapters.length,
+                ratingAvg: Number((Math.random() * 2 + 3).toFixed(2)), // 3.0 - 5.0
+                ratingCount: Math.floor(Math.random() * 1000),
+            },
+        });
+
+        // Create chapters
+        for (const chapter of series.chapters) {
+            const createdChapter = await prisma.chapter.upsert({
+                where: {
+                    seriesId_number_language: {
+                        seriesId: createdSeries.id,
+                        number: chapter.number,
+                        language: 'vi',
+                    },
+                },
+                update: {},
                 create: {
-                    number: 100,
-                    title: 'Heavy Chapter',
-                    slug: 'stress-test-chapter-100',
-                    pagesCount: 150,
+                    seriesId: createdSeries.id,
+                    number: chapter.number,
+                    title: chapter.title,
+                    slug: `chap-${chapter.number}`,
                     language: 'vi',
+                    pagesCount: chapter.pages,
                     isPublished: true,
-                    uploaderId: uploader.id,
-                    pages: {
-                        create: Array.from({ length: 150 }).map((_, i) => ({
-                            pageNumber: i + 1,
-                            imagePath: i % 2 === 0
-                                ? 'https://dummyimage.com/800x1200/2a2a2a/ffffff&text=Stress+Page+Even'
-                                : 'https://dummyimage.com/800x1200/333333/ffffff&text=Stress+Page+Odd', // Reuse images
-                            width: 800,
-                            height: 1200,
-                            status: PageStatus.CLEANED
-                        }))
-                    }
-                }
+                    publishedAt: new Date(),
+                },
+            });
+
+            // Create chapter stats
+            await prisma.chapterStats.upsert({
+                where: { chapterId: createdChapter.id },
+                update: {},
+                create: {
+                    chapterId: createdChapter.id,
+                    viewsCount: BigInt(Math.floor(Math.random() * 100000)),
+                },
+            });
+
+            // Create pages (placeholder - bạn cần thay bằng URL ảnh thật)
+            for (let i = 1; i <= chapter.pages; i++) {
+                await prisma.page.upsert({
+                    where: {
+                        chapterId_pageNumber: {
+                            chapterId: createdChapter.id,
+                            pageNumber: i,
+                        },
+                    },
+                    update: {},
+                    create: {
+                        chapterId: createdChapter.id,
+                        pageNumber: i,
+                        // Thay URL này bằng URL ảnh thật của bạn
+                        imagePath: `series/${createdSeries.id}/chapters/${createdChapter.id}/${String(i).padStart(3, '0')}.webp`,
+                        width: 800,
+                        height: 1200,
+                        status: PageStatus.FINAL,
+                    },
+                });
             }
         }
-    });
-    console.log('Created Stress Test Series:', stressSeries.title);
 
-    console.log('✅ Seed completed successfully!');
+        console.log(`   ✅ ${series.title} - ${series.chapters.length} chương`);
+    }
+
+    console.log('\n🎉 Seed hoàn tất!');
+    console.log('\n📌 Các bước tiếp theo:');
+    console.log('   1. Chỉnh sửa coverUrl, bannerUrl trong seed.ts thành URL ảnh thật');
+    console.log('   2. Upload ảnh các trang truyện lên MinIO hoặc storage');
+    console.log('   3. Cập nhật imagePath trong pages với đường dẫn thật');
+    console.log('   4. Chạy lại: npx prisma db seed');
 }
 
 main()
     .catch((e) => {
-        console.error(e);
+        console.error('❌ Lỗi khi seed:', e);
         process.exit(1);
     })
     .finally(async () => {

@@ -1,11 +1,23 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Trophy, Eye, Heart, Star, TrendingUp } from "lucide-react";
-import { getTopComics } from "@/lib/mock-data/comics";
 import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { api } from "@shared/api";
+
+interface RankedComic {
+  id: string;
+  title: string;
+  slug: string;
+  thumbnail: string;
+  totalViews: number;
+  followers: number;
+  rating: number;
+  authors: string[];
+  genres: { name: string; slug: string }[];
+}
 
 type RankingTab = "views" | "followers" | "rating";
 type TimeRange = "day" | "week" | "month" | "all";
@@ -13,8 +25,25 @@ type TimeRange = "day" | "week" | "month" | "all";
 export default function RankingPage() {
   const [activeTab, setActiveTab] = useState<RankingTab>("views");
   const [timeRange, setTimeRange] = useState<TimeRange>("week");
+  const [topComics, setTopComics] = useState<RankedComic[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const topComics = getTopComics(50);
+  useEffect(() => {
+    const fetchRankings = async () => {
+      try {
+        setLoading(true);
+        const sortParam = activeTab === "views" ? "views" :
+          activeTab === "followers" ? "followers" : "rating";
+        const response = await api.get<{ data: RankedComic[] }>(`/comics?sort=${sortParam}&limit=50`);
+        setTopComics(response.data.data);
+      } catch (error) {
+        console.error('Failed to fetch rankings:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRankings();
+  }, [activeTab]);
 
   const tabs: { key: RankingTab; label: string; icon: React.ReactNode }[] = [
     { key: "views", label: "Lượt xem", icon: <Eye className="h-4 w-4" /> },
@@ -55,14 +84,14 @@ export default function RankingPage() {
     );
   };
 
-  const getStatValue = (comic: (typeof topComics)[0]) => {
+  const getStatValue = (comic: RankedComic) => {
     switch (activeTab) {
       case "views":
         return formatNumber(comic.totalViews);
       case "followers":
         return formatNumber(comic.followers);
       case "rating":
-        return comic.rating. toFixed(1);
+        return comic.rating.toFixed(1);
     }
   };
 
@@ -85,14 +114,14 @@ export default function RankingPage() {
       {/* Tabs */}
       <div className="mb-6 flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
         <div className="flex rounded-lg bg-background-surface1 p-1">
-          {tabs. map((tab) => (
+          {tabs.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={cn(
                 "flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors",
-                activeTab === tab. key
-                  ?  "bg-accent-brand text-white"
+                activeTab === tab.key
+                  ? "bg-accent-brand text-white"
                   : "text-text-secondary hover:text-text-primary"
               )}
             >
@@ -108,7 +137,7 @@ export default function RankingPage() {
               key={range.key}
               onClick={() => setTimeRange(range.key)}
               className={cn(
-                "rounded-md px-3 py-1. 5 text-sm font-medium transition-colors",
+                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
                 timeRange === range.key
                   ? "bg-accent-utility text-white"
                   : "text-text-secondary hover:text-text-primary"
@@ -122,86 +151,116 @@ export default function RankingPage() {
 
       {/* Ranking List */}
       <div className="rounded-lg bg-background-surface1">
-        {/* Top 3 Featured */}
-        <div className="grid gap-4 border-b border-border p-6 md:grid-cols-3">
-          {topComics.slice(0, 3).map((comic, index) => (
-            <Link
-              key={comic.id}
-              href={`/truyen/${comic.slug}`}
-              className={cn(
-                "group relative overflow-hidden rounded-xl p-4 transition-all hover:scale-[1.02]",
-                index === 0
-                  ? "bg-gradient-to-br from-yellow-500/20 to-yellow-600/10 md:col-span-1"
-                  : index === 1
-                  ? "bg-gradient-to-br from-gray-400/20 to-gray-500/10"
-                  : "bg-gradient-to-br from-amber-600/20 to-amber-700/10"
-              )}
-            >
-              <div className="flex items-start gap-4">
-                <div className="relative">
+        {loading ? (
+          <div className="p-6">
+            <div className="grid gap-4 md:grid-cols-3 mb-6">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="animate-pulse rounded-xl bg-background-surface2 p-4 h-32" />
+              ))}
+            </div>
+            <div className="divide-y divide-border">
+              {[...Array(7)].map((_, i) => (
+                <div key={i} className="flex items-center gap-4 p-4 animate-pulse">
+                  <div className="h-8 w-8 rounded-full bg-background-surface2" />
+                  <div className="h-16 w-12 rounded-lg bg-background-surface2" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 w-3/4 rounded bg-background-surface2" />
+                    <div className="h-3 w-1/2 rounded bg-background-surface2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : topComics.length === 0 ? (
+          <div className="p-12 text-center">
+            <Trophy className="h-12 w-12 mx-auto text-text-muted mb-4" />
+            <p className="text-text-secondary">Chưa có truyện nào trong bảng xếp hạng</p>
+            <p className="mt-2 text-sm text-text-muted">Thêm truyện vào database để hiển thị</p>
+          </div>
+        ) : (
+          <>
+            {/* Top 3 Featured */}
+            <div className="grid gap-4 border-b border-border p-6 md:grid-cols-3">
+              {topComics.slice(0, 3).map((comic, index) => (
+                <Link
+                  key={comic.id}
+                  href={`/truyen/${comic.slug}`}
+                  className={cn(
+                    "group relative overflow-hidden rounded-xl p-4 transition-all hover:scale-[1.02]",
+                    index === 0
+                      ? "bg-gradient-to-br from-yellow-500/20 to-yellow-600/10 md:col-span-1"
+                      : index === 1
+                        ? "bg-gradient-to-br from-gray-400/20 to-gray-500/10"
+                        : "bg-gradient-to-br from-amber-600/20 to-amber-700/10"
+                  )}
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="relative">
+                      <img
+                        src={comic.thumbnail}
+                        alt={comic.title}
+                        className="h-24 w-18 rounded-lg object-cover"
+                      />
+                      <div className="absolute -left-2 -top-2">
+                        {getRankBadge(index + 1)}
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-text-primary group-hover:text-accent-brand">
+                        {comic.title}
+                      </h3>
+                      <p className="mt-1 text-sm text-text-secondary">
+                        {comic.authors?.join(", ") || "Unknown"}
+                      </p>
+                      <div className="mt-2 flex items-center gap-1 text-sm font-medium text-accent-brand">
+                        <TrendingUp className="h-4 w-4" />
+                        {getStatValue(comic)}
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+
+            {/* Rest of the list */}
+            <div className="divide-y divide-border">
+              {topComics.slice(3).map((comic, index) => (
+                <Link
+                  key={comic.id}
+                  href={`/truyen/${comic.slug}`}
+                  className="flex items-center gap-4 p-4 transition-colors hover:bg-background-surface2"
+                >
+                  {getRankBadge(index + 4)}
                   <img
                     src={comic.thumbnail}
                     alt={comic.title}
-                    className="h-24 w-18 rounded-lg object-cover"
+                    className="h-16 w-12 rounded-lg object-cover"
                   />
-                  <div className="absolute -left-2 -top-2">
-                    {getRankBadge(index + 1)}
+                  <div className="min-w-0 flex-1">
+                    <h4 className="truncate font-medium text-text-primary">
+                      {comic.title}
+                    </h4>
+                    <p className="text-sm text-text-secondary">
+                      {comic.genres?.slice(0, 2).map((g) => g.name).join(", ") || ""}
+                    </p>
                   </div>
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-text-primary group-hover:text-accent-brand">
-                    {comic.title}
-                  </h3>
-                  <p className="mt-1 text-sm text-text-secondary">
-                    {comic.authors.join(", ")}
-                  </p>
-                  <div className="mt-2 flex items-center gap-1 text-sm font-medium text-accent-brand">
-                    <TrendingUp className="h-4 w-4" />
-                    {getStatValue(comic)}
+                  <div className="text-right">
+                    <p className="font-semibold text-accent-brand">
+                      {getStatValue(comic)}
+                    </p>
+                    <p className="text-xs text-text-muted">
+                      {activeTab === "views"
+                        ? "lượt xem"
+                        : activeTab === "followers"
+                          ? "theo dõi"
+                          : "điểm"}
+                    </p>
                   </div>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-
-        {/* Rest of the list */}
-        <div className="divide-y divide-border">
-          {topComics.slice(3).map((comic, index) => (
-            <Link
-              key={comic.id}
-              href={`/truyen/${comic.slug}`}
-              className="flex items-center gap-4 p-4 transition-colors hover:bg-background-surface2"
-            >
-              {getRankBadge(index + 4)}
-              <img
-                src={comic.thumbnail}
-                alt={comic.title}
-                className="h-16 w-12 rounded-lg object-cover"
-              />
-              <div className="min-w-0 flex-1">
-                <h4 className="truncate font-medium text-text-primary">
-                  {comic.title}
-                </h4>
-                <p className="text-sm text-text-secondary">
-                  {comic.genres.slice(0, 2).map((g) => g.name).join(", ")}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="font-semibold text-accent-brand">
-                  {getStatValue(comic)}
-                </p>
-                <p className="text-xs text-text-muted">
-                  {activeTab === "views"
-                    ? "lượt xem"
-                    : activeTab === "followers"
-                    ? "theo dõi"
-                    : "điểm"}
-                </p>
-              </div>
-            </Link>
-          ))}
-        </div>
+                </Link>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
