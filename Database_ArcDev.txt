@@ -1,0 +1,945 @@
+# 🗄️ DATABASE ARCHITECTURE CHO MANGA PLATFORM
+
+## Tổng quan Chiến lược Database
+
+### Nguyên tắc Thiết kế
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         DATABASE DESIGN PRINCIPLES                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  1. SEPARATION OF CONCERNS (Tách biệt mối quan tâm)                         │
+│     ├── Metadata (PostgreSQL): Users, Series, Chapters info                 │
+│     ├── Content URLs (PostgreSQL + CDN): Image paths, không lưu binary      │
+│     ├── Hot Data (Redis): View counts, rankings, sessions                   │
+│     └── Files (S3/MinIO): Actual images                                     │
+│                                                                              │
+│  2. READ-HEAVY OPTIMIZATION (90% Read, 10% Write)                           │
+│     ├── Denormalization có chọn lọc                                          │
+│     ├── Materialized views cho rankings                                      │
+│     └── Caching layers                                                       │
+│                                                                              │
+│  3. SCALABILITY FIRST                                                        │
+│     ├── UUID thay vì auto-increment (distributed-friendly)                  │
+│     ├── Soft delete thay vì hard delete                                      │
+│     └── Audit trails cho mọi thay đổi                                        │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 1. CORE ENTITIES (Thực thể Cốt lõi)
+
+### 1.1 Users & Authentication
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              USERS DOMAIN                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────┐      ┌─────────────┐      ┌─────────────┐                  │
+│  │   users     │──1: N─│user_profiles│      │ user_stats  │                  │
+│  │             │      │  (optional) │      │ (denorm)    │                  │
+│  └─────────────┘      └─────────────┘      └─────────────┘                  │
+│         │                                                                    │
+│         │ 1:N                                                                │
+│         ▼                                                                    │
+│  ┌─────────────┐      ┌─────────────┐                                       │
+│  │user_sessions│      │oauth_accounts│                                       │
+│  └─────────────┘      └─────────────┘                                       │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Table:  `users`** (Core user identity)
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `email` | VARCHAR(255) | Unique, indexed |
+| `username` | VARCHAR(50) | Unique, indexed, URL-safe |
+| `password_hash` | VARCHAR(255) | bcrypt hash, NULL nếu OAuth only |
+| `role` | ENUM | 'reader', 'uploader', 'translator', 'moderator', 'admin' |
+| `status` | ENUM | 'active', 'suspended', 'banned', 'deleted' |
+| `email_verified_at` | TIMESTAMP | NULL nếu chưa verify |
+| `created_at` | TIMESTAMP | |
+| `updated_at` | TIMESTAMP | |
+| `last_login_at` | TIMESTAMP | |
+
+**Tại sao tách `user_profiles`?**
+- `users` table được query RẤT NHIỀU (mỗi request check auth)
+- Profile data (bio, avatar, social links) ít khi cần
+- Giữ `users` table nhỏ gọn → faster queries
+
+**Table: `user_profiles`** (Extended info)
+| Column | Type | Description |
+|--------|------|-------------|
+| `user_id` | UUID | FK → users, Primary key |
+| `display_name` | VARCHAR(100) | Tên hiển thị |
+| `avatar_url` | TEXT | CDN URL |
+| `cover_url` | TEXT | Banner cá nhân |
+| `bio` | TEXT | Giới thiệu bản thân |
+| `website` | VARCHAR(255) | |
+| `social_links` | JSONB | {"facebook": "...", "twitter": "..."} |
+| `preferences` | JSONB | {"theme": "dark", "language": "vi"} |
+| `updated_at` | TIMESTAMP | |
+
+**Table: `user_stats`** (Denormalized counters - cập nhật async)
+| Column | Type | Description |
+|--------|------|-------------|
+| `user_id` | UUID | FK → users, Primary key |
+| `followers_count` | INTEGER | |
+| `following_count` | INTEGER | |
+| `uploads_count` | INTEGER | Số series đã upload |
+| `chapters_count` | INTEGER | Số chapters đã dịch |
+| `total_views` | BIGINT | Tổng views các content |
+| `reputation_score` | INTEGER | Điểm uy tín |
+| `level` | INTEGER | Level người dùng |
+| `exp_points` | INTEGER | Kinh nghiệm |
+| `updated_at` | TIMESTAMP | |
+
+**Tại sao dùng `user_stats` riêng?**
+```
+Vấn đề:  UPDATE users SET followers_count = followers_count + 1
+        → Lock row → Bottleneck khi 1000 người follow cùng lúc
+
+Giải pháp: 
+├── Redis INCR user:{id}: followers (real-time)
+├── Cronjob sync Redis → user_stats mỗi 5 phút
+└── user_stats không lock users table
+```
+
+---
+
+### 1.2 Series (Manga/Manhwa/Manhua)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              SERIES DOMAIN                                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────┐      ┌─────────────┐      ┌─────────────┐                  │
+│  │   series    │──1:N─│series_genres│──N:1─│   genres    │                  │
+│  │             │      └─────────────┘      └─────────────┘                  │
+│  │             │                                                             │
+│  │             │──1:N─┌─────────────┐                                       │
+│  │             │      │series_tags  │──N:1─┌─────────────┐                  │
+│  │             │      └─────────────┘      │    tags     │                  │
+│  └─────────────┘                           └─────────────┘                  │
+│         │                                                                    │
+│         │ 1:1                                                                │
+│         ▼                                                                    │
+│  ┌─────────────┐      ┌─────────────┐      ┌─────────────┐                  │
+│  │series_stats │      │series_alt   │      │series_staff │                  │
+│  │ (denorm)    │      │_titles      │      │(author,artist)│                │
+│  └─────────────┘      └─────────────┘      └─────────────┘                  │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Table: `series`** (Core manga info)
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `title` | VARCHAR(255) | Tên chính (display) |
+| `slug` | VARCHAR(255) | URL-safe, unique, indexed |
+| `type` | ENUM | 'manga', 'manhwa', 'manhua', 'comic', 'webtoon' |
+| `status` | ENUM | 'ongoing', 'completed', 'hiatus', 'cancelled', 'upcoming' |
+| `country` | VARCHAR(2) | 'JP', 'KR', 'CN', 'VN', etc. (ISO code) |
+| `year` | SMALLINT | Năm phát hành |
+| `description` | TEXT | Mô tả/tóm tắt |
+| `cover_url` | TEXT | Ảnh bìa chính |
+| `banner_url` | TEXT | Banner (optional) |
+| `is_nsfw` | BOOLEAN | 18+ content |
+| `is_licensed` | BOOLEAN | Có bản quyền official |
+| `uploader_id` | UUID | FK → users (người đăng đầu tiên) |
+| `visibility` | ENUM | 'public', 'private', 'unlisted' |
+| `created_at` | TIMESTAMP | |
+| `updated_at` | TIMESTAMP | |
+| `published_at` | TIMESTAMP | Khi nào public lần đầu |
+
+**Table: `series_alt_titles`** (Tên thay thế - quan trọng cho search)
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `series_id` | UUID | FK → series |
+| `title` | VARCHAR(255) | Tên thay thế |
+| `language` | VARCHAR(5) | 'ja', 'ko', 'zh', 'en', 'vi' |
+| `is_primary` | BOOLEAN | Tên chính của ngôn ngữ đó |
+
+**Tại sao cần `series_alt_titles`?**
+```
+One Piece có thể được tìm bằng: 
+├── "One Piece" (English)
+├── "ワンピース" (Japanese)
+├── "원피스" (Korean)
+├── "Đảo Hải Tặc" (Vietnamese)
+└── "Vua Hải Tặc" (Vietnamese alt)
+
+→ Full-text search trên tất cả titles
+```
+
+**Table: `series_stats`** (Denormalized - async update)
+| Column | Type | Description |
+|--------|------|-------------|
+| `series_id` | UUID | FK → series, Primary key |
+| `total_views` | BIGINT | Tổng views |
+| `weekly_views` | INTEGER | Views 7 ngày gần nhất |
+| `monthly_views` | INTEGER | Views 30 ngày gần nhất |
+| `followers_count` | INTEGER | Số người theo dõi |
+| `chapters_count` | INTEGER | Số chapters |
+| `rating_avg` | DECIMAL(3,2) | Rating trung bình (1-5) |
+| `rating_count` | INTEGER | Số lượt đánh giá |
+| `comments_count` | INTEGER | Tổng comments |
+| `last_chapter_at` | TIMESTAMP | Thời gian chapter mới nhất |
+| `updated_at` | TIMESTAMP | |
+
+**Table: `genres`** (Master data)
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | SMALLINT | Primary key (nhỏ, ít thay đổi) |
+| `name` | VARCHAR(50) | "Action", "Romance", etc. |
+| `slug` | VARCHAR(50) | "action", "romance" |
+| `description` | TEXT | |
+
+**Table: `series_genres`** (Junction table)
+| Column | Type | Description |
+|--------|------|-------------|
+| `series_id` | UUID | FK → series |
+| `genre_id` | SMALLINT | FK → genres |
+| PRIMARY KEY | | (series_id, genre_id) |
+
+---
+
+### 1.3 Chapters & Pages (QUAN TRỌNG NHẤT)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           CHAPTERS & PAGES DOMAIN                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────┐                                                            │
+│  │   series    │                                                            │
+│  └──────┬──────┘                                                            │
+│         │ 1:N                                                                │
+│         ▼                                                                    │
+│  ┌─────────────┐      ┌─────────────┐      ┌─────────────┐                  │
+│  │  chapters   │──1:1─│chapter_stats│      │chapter_prices│                  │
+│  │             │      │  (denorm)   │      │ (premium)   │                  │
+│  └──────┬──────┘      └─────────────┘      └─────────────┘                  │
+│         │ 1:N                                                                │
+│         ▼                                                                    │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                              pages                                   │    │
+│  │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐   │    │
+│  │  │ Page 1  │  │ Page 2  │  │ Page 3  │  │  ...     │  │ Page N  │   │    │
+│  │  │  URLs   │  │  URLs   │  │  URLs   │  │         │  │  URLs   │   │    │
+│  │  └─────────┘  └─────────┘  └─────────┘  └─────────┘  └─────────┘   │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Table: `chapters`**
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `series_id` | UUID | FK → series, indexed |
+| `number` | DECIMAL(10,2) | 1, 1.5, 2, 100.5 (hỗ trợ chapter lẻ) |
+| `volume` | SMALLINT | Volume number (optional) |
+| `title` | VARCHAR(255) | Tên chapter (optional) |
+| `slug` | VARCHAR(100) | "chapter-1", "chuong-1" |
+| `language` | VARCHAR(5) | 'vi', 'en', 'raw' |
+| `pages_count` | SMALLINT | Số trang (denormalized) |
+| `is_premium` | BOOLEAN | Trả phí hay không |
+| `is_published` | BOOLEAN | Đã public chưa |
+| `uploader_id` | UUID | FK → users |
+| `team_id` | UUID | FK → teams (nullable) |
+| `source_url` | TEXT | Link gốc (nếu có) |
+| `created_at` | TIMESTAMP | |
+| `published_at` | TIMESTAMP | Khi nào public |
+| `scheduled_at` | TIMESTAMP | Hẹn giờ đăng (nullable) |
+| UNIQUE | | (series_id, number, language) |
+
+**Index quan trọng:**
+```sql
+-- Query phổ biến:  Lấy chapters của 1 series, sắp xếp theo number
+CREATE INDEX idx_chapters_series_number 
+ON chapters(series_id, number DESC, language);
+
+-- Query: Chapters mới nhất
+CREATE INDEX idx_chapters_published 
+ON chapters(published_at DESC) 
+WHERE is_published = true;
+```
+
+**Table: `pages`** (Trọng tâm lưu trữ ảnh)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `chapter_id` | UUID | FK → chapters, indexed |
+| `page_number` | SMALLINT | 1, 2, 3...  |
+| `image_path` | VARCHAR(500) | S3 path:  `series/{id}/chapters/{id}/{page}. webp` |
+| `width` | SMALLINT | Pixel width |
+| `height` | SMALLINT | Pixel height |
+| `file_size` | INTEGER | Bytes |
+| `blurhash` | VARCHAR(50) | Blur placeholder hash |
+| `created_at` | TIMESTAMP | |
+| UNIQUE | | (chapter_id, page_number) |
+
+**Tại sao design như vậy?**
+
+```
+❌ CÁCH SAI:  Lưu tất cả page URLs trong 1 JSONB column của chapters
+   chapters. pages = ["url1", "url2", ...]
+   
+   Vấn đề: 
+   ├── Không query được từng page
+   ├── Update 1 page = rewrite toàn bộ array
+   ├── Không có metadata per page (width, height)
+   └── JSONB indexes kém hiệu quả
+
+✅ CÁCH ĐÚNG: Mỗi page là 1 row riêng
+   
+   Ưu điểm:
+   ├── Query từng page dễ dàng
+   ├── Update atomic
+   ├── Có đầy đủ metadata
+   ├── Parallel loading possible
+   └── Dễ implement lazy loading
+```
+
+**Table: `chapter_stats`** (Denormalized)
+| Column | Type | Description |
+|--------|------|-------------|
+| `chapter_id` | UUID | FK → chapters, Primary key |
+| `views_count` | BIGINT | |
+| `comments_count` | INTEGER | |
+| `likes_count` | INTEGER | |
+| `updated_at` | TIMESTAMP | |
+
+**Table: `chapter_prices`** (Premium chapters)
+| Column | Type | Description |
+|--------|------|-------------|
+| `chapter_id` | UUID | FK → chapters, Primary key |
+| `price_coins` | INTEGER | Giá bằng xu |
+| `discount_percent` | SMALLINT | % giảm giá (0-100) |
+| `discount_until` | TIMESTAMP | Hết hạn giảm giá |
+| `free_after` | TIMESTAMP | Miễn phí sau ngày này |
+
+---
+
+### 1.4 URL Strategy (Quan trọng!)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           IMAGE URL STRATEGY                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  S3 BUCKET STRUCTURE:                                                        │
+│  ────────────────────                                                        │
+│  mangahub-content/                                                           │
+│  ├── series/                                                                 │
+│  │   ├── {series_uuid}/                                                      │
+│  │   │   ├── cover.webp                                                      │
+│  │   │   ├── banner.webp                                                     │
+│  │   │   └── chapters/                                                       │
+│  │   │       ├── {chapter_uuid}/                                             │
+│  │   │       │   ├── 001.webp                                                │
+│  │   │       │   ├── 002.webp                                                │
+│  │   │       │   ├── 003.webp                                                │
+│  │   │       │   └── ...                                                     │
+│  │   │       └── {chapter_uuid}/                                             │
+│  │   └── {series_uuid}/                                                      │
+│  └── users/                                                                  │
+│      └── {user_uuid}/                                                        │
+│          └── avatar.webp                                                     │
+│                                                                              │
+│  DATABASE LƯU:                                                                │
+│  ─────────────                                                               │
+│  pages. image_path = "series/{uuid}/chapters/{uuid}/001.webp"                │
+│                                                                              │
+│  KHÔNG LƯU: Full URL (https://s3.../bucket/...)                             │
+│  TẠI SAO:  Dễ migrate giữa S3 providers, đổi CDN domain                     │
+│                                                                              │
+│  FRONTEND SỬ DỤNG:                                                           │
+│  ─────────────────                                                           │
+│  const imageUrl = `${CDN_BASE}/${page.image_path}`                          │
+│  hoặc qua Imgproxy:                                                           │
+│  const imageUrl = `${IMGPROXY_URL}/resize: 800/plain/s3://${page.image_path}`│
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Naming Convention:**
+
+```
+Tại sao dùng UUID folder thay vì slug?
+├── Slug có thể thay đổi → broken links
+├── UUID immutable → URLs ổn định mãi mãi
+├── UUID unique → không conflict
+└── Slug vẫn dùng cho URL thân thiện người dùng
+
+URL cho người dùng:  /truyen/one-piece/chapter-1
+Nhưng internally: /series/abc-123-uuid/chapters/def-456-uuid/
+
+Tại sao page là 001.webp thay vì 1.webp?
+├── Sorting đúng:  001, 002, .. ., 010, 011
+├── Nếu dùng 1, 2: 1, 10, 11, 2, 20 (sai)
+└── 3 digits hỗ trợ tới 999 pages/chapter
+```
+
+---
+
+## 2. SOCIAL & INTERACTION ENTITIES
+
+### 2.1 Following & Bookmarks
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           SOCIAL INTERACTIONS                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────┐                     ┌─────────────┐                        │
+│  │   users     │                     │   series    │                        │
+│  └──────┬──────┘                     └──────┬──────┘                        │
+│         │                                   │                                │
+│         │ N:M                               │ N:M                            │
+│         ▼                                   ▼                                │
+│  ┌─────────────┐                     ┌─────────────┐                        │
+│  │user_follows │                     │series_follows│                        │
+│  │(user→user)  │                     │(user→series)│                        │
+│  └─────────────┘                     └─────────────┘                        │
+│                                             │                                │
+│                                             │                                │
+│                                      ┌─────────────┐                        │
+│                                      │reading_     │                        │
+│                                      │progress     │                        │
+│                                      └─────────────┘                        │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Table: `series_follows`** (Theo dõi truyện)
+| Column | Type | Description |
+|--------|------|-------------|
+| `user_id` | UUID | FK → users |
+| `series_id` | UUID | FK → series |
+| `notify` | BOOLEAN | Nhận thông báo chapter mới |
+| `created_at` | TIMESTAMP | |
+| PRIMARY KEY | | (user_id, series_id) |
+
+**Index:**
+```sql
+-- User's following list
+CREATE INDEX idx_series_follows_user 
+ON series_follows(user_id, created_at DESC);
+
+-- Series's followers count
+CREATE INDEX idx_series_follows_series 
+ON series_follows(series_id);
+```
+
+**Table: `reading_progress`** (Tiến độ đọc)
+| Column | Type | Description |
+|--------|------|-------------|
+| `user_id` | UUID | FK → users |
+| `series_id` | UUID | FK → series |
+| `last_chapter_id` | UUID | FK → chapters |
+| `last_page_number` | SMALLINT | Trang cuối đọc |
+| `progress_percent` | SMALLINT | % hoàn thành series |
+| `started_at` | TIMESTAMP | Bắt đầu đọc |
+| `updated_at` | TIMESTAMP | Lần đọc gần nhất |
+| PRIMARY KEY | | (user_id, series_id) |
+
+**Table: `reading_history`** (Chi tiết từng lần đọc)
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `user_id` | UUID | FK → users |
+| `chapter_id` | UUID | FK → chapters |
+| `started_at` | TIMESTAMP | Bắt đầu đọc chapter |
+| `finished_at` | TIMESTAMP | Đọc xong (nullable) |
+| `pages_read` | SMALLINT | Số trang đã đọc |
+
+**Tại sao cần cả 2 tables?**
+```
+reading_progress:  Trạng thái hiện tại (1 row per series per user)
+├── Dùng cho "Continue Reading" button
+├── Dùng cho progress bar
+└── Query nhanh
+
+reading_history: Lịch sử chi tiết (nhiều rows)
+├── Analytics:  user đọc vào giờ nào
+├── "Đã đọc gần đây" list
+└── Behavior tracking
+```
+
+---
+
+### 2.2 Ratings & Comments
+
+**Table: `series_ratings`**
+| Column | Type | Description |
+|--------|------|-------------|
+| `user_id` | UUID | FK → users |
+| `series_id` | UUID | FK → series |
+| `score` | SMALLINT | 1-5 hoặc 1-10 |
+| `created_at` | TIMESTAMP | |
+| `updated_at` | TIMESTAMP | |
+| PRIMARY KEY | | (user_id, series_id) |
+
+**Table: `comments`** (Polymorphic - dùng cho nhiều entity)
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `user_id` | UUID | FK → users |
+| `entity_type` | ENUM | 'series', 'chapter' |
+| `entity_id` | UUID | ID của series hoặc chapter |
+| `parent_id` | UUID | FK → comments (reply) |
+| `content` | TEXT | Nội dung comment |
+| `likes_count` | INTEGER | Denormalized |
+| `replies_count` | INTEGER | Denormalized |
+| `is_pinned` | BOOLEAN | Ghim comment |
+| `is_hidden` | BOOLEAN | Ẩn (moderation) |
+| `created_at` | TIMESTAMP | |
+| `updated_at` | TIMESTAMP | |
+
+**Index:**
+```sql
+-- Comments của 1 chapter, mới nhất trước
+CREATE INDEX idx_comments_entity 
+ON comments(entity_type, entity_id, created_at DESC)
+WHERE is_hidden = false;
+
+-- Replies của 1 comment
+CREATE INDEX idx_comments_parent 
+ON comments(parent_id, created_at ASC)
+WHERE parent_id IS NOT NULL;
+```
+
+---
+
+## 3. COMMERCE ENTITIES (Wallet & Payments)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           COMMERCE DOMAIN                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────┐      ┌─────────────┐      ┌─────────────┐                  │
+│  │   users     │──1:1─│   wallets   │──1:N─│ledger_entries│                  │
+│  └─────────────┘      └─────────────┘      └─────────────┘                  │
+│                              │                                               │
+│                              │ 1:N                                           │
+│                              ▼                                               │
+│                       ┌─────────────┐      ┌─────────────┐                  │
+│                       │transactions │──N:1─│payment_     │                  │
+│                       │             │      │methods      │                  │
+│                       └─────────────┘      └─────────────┘                  │
+│                              │                                               │
+│                              │                                               │
+│                              ▼                                               │
+│                       ┌─────────────┐                                       │
+│                       │chapter_     │                                       │
+│                       │purchases    │                                       │
+│                       └─────────────┘                                       │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Table: `wallets`**
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `user_id` | UUID | FK → users, UNIQUE |
+| `balance` | BIGINT | Số xu hiện tại (KHÔNG ĐƯỢC ÂM) |
+| `total_deposited` | BIGINT | Tổng nạp |
+| `total_spent` | BIGINT | Tổng tiêu |
+| `currency` | VARCHAR(10) | 'COIN', 'VND' |
+| `created_at` | TIMESTAMP | |
+| `updated_at` | TIMESTAMP | |
+
+**Constraint quan trọng:**
+```sql
+ALTER TABLE wallets 
+ADD CONSTRAINT positive_balance CHECK (balance >= 0);
+```
+
+**Table: `ledger_entries`** (Double-Entry Bookkeeping)
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `transaction_id` | UUID | Group entries của cùng 1 transaction |
+| `wallet_id` | UUID | FK → wallets |
+| `entry_type` | ENUM | 'DEBIT' (trừ), 'CREDIT' (cộng) |
+| `amount` | BIGINT | Số tiền (luôn dương) |
+| `balance_after` | BIGINT | Số dư sau transaction |
+| `description` | VARCHAR(255) | "Mua chapter One Piece #100" |
+| `reference_type` | VARCHAR(50) | 'chapter_purchase', 'topup', 'refund' |
+| `reference_id` | UUID | ID của entity liên quan |
+| `created_at` | TIMESTAMP | |
+
+**Ví dụ Double-Entry:**
+```
+User A mua chapter (20 xu):
+
+ledger_entries: 
+┌──────────────┬────────────────┬───────┬────────┬───────────────┐
+│transaction_id│   wallet_id    │ type  │ amount │ balance_after │
+├──────────────┼────────────────┼───────┼────────┼───────────────┤
+│ txn-001      │ user_A_wallet  │ DEBIT │   20   │     80        │
+│ txn-001      │ system_revenue │ CREDIT│   20   │    1020       │
+└──────────────┴────────────────┴───────┴────────┴───────────────┘
+
+Verify:  SUM(DEBIT) = SUM(CREDIT) = 20 ✓
+```
+
+**Table: `transactions`** (Payment records)
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `user_id` | UUID | FK → users |
+| `type` | ENUM | 'topup', 'purchase', 'refund', 'reward' |
+| `status` | ENUM | 'pending', 'completed', 'failed', 'cancelled' |
+| `amount_coins` | INTEGER | Số xu |
+| `amount_money` | BIGINT | Số tiền VND (nếu topup) |
+| `payment_method` | VARCHAR(50) | 'momo', 'vnpay', 'bank_transfer' |
+| `payment_ref` | VARCHAR(255) | Mã giao d��ch từ payment gateway |
+| `metadata` | JSONB | Chi tiết bổ sung |
+| `created_at` | TIMESTAMP | |
+| `completed_at` | TIMESTAMP | |
+| `expires_at` | TIMESTAMP | Hết hạn thanh toán |
+
+**Table: `chapter_purchases`**
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `user_id` | UUID | FK → users |
+| `chapter_id` | UUID | FK → chapters |
+| `transaction_id` | UUID | FK → transactions |
+| `price_paid` | INTEGER | Giá lúc mua (có thể khác giá hiện tại) |
+| `purchased_at` | TIMESTAMP | |
+| UNIQUE | | (user_id, chapter_id) |
+
+---
+
+## 4. TEAM & COLLABORATION ENTITIES
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           TEAMS DOMAIN                                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────┐                     ┌─────────────┐                        │
+│  │   teams     │──────1:N───────────│team_members │                        │
+│  │             │                     │             │                        │
+│  └──────┬──────┘                     └──────┬──────┘                        │
+│         │                                   │                                │
+│         │ 1:N                               │ N:1                            │
+│         ▼                                   ▼                                │
+│  ┌─────────────┐                     ┌─────────────┐                        │
+│  │  projects   │                     │   users     │                        │
+│  │(series work)│                     │             │                        │
+│  └──────┬──────┘                     └─────────────┘                        │
+│         │                                                                    │
+│         │ 1:N                                                                │
+│         ▼                                                                    │
+│  ┌─────────────┐                                                            │
+│  │chapter_     │                                                            │
+│  │credits      │                                                            │
+│  └─────────────┘                                                            │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Table: `teams`** (Nhóm scanlation)
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `name` | VARCHAR(100) | Unique |
+| `slug` | VARCHAR(100) | URL-safe, unique |
+| `description` | TEXT | |
+| `logo_url` | TEXT | |
+| `banner_url` | TEXT | |
+| `website` | VARCHAR(255) | |
+| `discord_url` | VARCHAR(255) | |
+| `is_verified` | BOOLEAN | Xác thực chính thức |
+| `is_recruiting` | BOOLEAN | Đang tuyển thành viên |
+| `owner_id` | UUID | FK → users |
+| `created_at` | TIMESTAMP | |
+
+**Table: `team_members`**
+| Column | Type | Description |
+|--------|------|-------------|
+| `team_id` | UUID | FK → teams |
+| `user_id` | UUID | FK → users |
+| `role` | ENUM | 'owner', 'admin', 'translator', 'editor', 'proofreader', 'member' |
+| `joined_at` | TIMESTAMP | |
+| PRIMARY KEY | | (team_id, user_id) |
+
+**Table: `chapter_credits`** (Ghi nhận đóng góp)
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `chapter_id` | UUID | FK → chapters |
+| `user_id` | UUID | FK → users (nullable) |
+| `team_id` | UUID | FK → teams (nullable) |
+| `role` | ENUM | 'translator', 'editor', 'proofreader', 'cleaner', 'typesetter', 'raw_provider', 'quality_check' |
+| `note` | VARCHAR(255) | Ghi chú thêm |
+
+---
+
+## 5. VIEWS & ANALYTICS (Redis + PostgreSQL)
+
+### Strategy:  Hybrid Approach
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        VIEWS COUNTING STRATEGY                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  REAL-TIME (Redis):                                                          │
+│  ─────────────────                                                           │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │  HyperLogLog:  Unique views                                             │  │
+│  │  ├── PFADD views: chapter:{id}:daily:{date} {user_ip}                  │  │
+│  │  ├── PFADD views:series:{id}: daily:{date} {user_ip}                   │  │
+│  │  └── PFCOUNT views:chapter:{id}:daily: 2024-01-15                      │  │
+│  │                                                                        │  │
+│  │  Sorted Sets:  Rankings                                                 │  │
+│  │  ├── ZINCRBY rankings:daily {score} {series_id}                       │  │
+│  │  ├── ZINCRBY rankings:weekly {score} {series_id}                      │  │
+│  │  └── ZREVRANGE rankings:daily 0 9 WITHSCORES (Top 10)                 │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+│  PERSISTENT (PostgreSQL):                                                    │
+│  ────────────────────────                                                    │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │  Cronjob mỗi 10 phút:                                                   │  │
+│  │  ├── Sync Redis counters → series_stats, chapter_stats                │  │
+│  │  └── Archive Redis data sau 7 ngày → analytics_daily table            │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Table: `analytics_daily`** (Historical data)
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | BIGSERIAL | Primary key |
+| `date` | DATE | Ngày |
+| `entity_type` | VARCHAR(20) | 'series', 'chapter' |
+| `entity_id` | UUID | |
+| `views` | INTEGER | Số views trong ngày |
+| `unique_views` | INTEGER | Unique visitors |
+| `new_followers` | INTEGER | Follows mới |
+| `comments` | INTEGER | Comments mới |
+| PRIMARY KEY | | (date, entity_type, entity_id) |
+
+---
+
+## 6. FULL SCHEMA DIAGRAM
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                                    COMPLETE SCHEMA                                       │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                          │
+│                              ┌─────────────────────┐                                    │
+│                              │       users         │                                    │
+│                              │  ─────────────────  │                                    │
+│                              │  id, email, role    │                                    │
+│                              └──────────┬──────────┘                                    │
+│          ┌───────────────────────┬──────┴──────┬───────────────────────┐               │
+│          │                       │             │                       │               │
+│          ▼                       ▼             ▼                       ▼               │
+│  ┌──────────────┐        ┌─────────────┐ ┌──────────┐         ┌──────────────┐         │
+│  │user_profiles │        │  wallets    │ │  teams   │         │series_follows│         │
+│  └──────────────┘        └──────┬──────┘ └────┬─────┘         └──────────────┘         │
+│                                 │             │                       │               │
+│                                 ▼             ▼                       │               │
+│                          ┌─────────────┐ ┌──────────────┐             │               │
+│                          │ledger_entries│ │team_members │             │               │
+│                          └─────────────┘ └──────────────┘             │               │
+│                                                                       │               │
+│                              ┌─────────────────────┐                  │               │
+│                              │       series        │◄─────────────────┘               │
+│                              │  ─────────────────  │                                    │
+│                              │  id, title, slug    │                                    │
+│                              └──────────┬──────────┘                                    │
+│          ┌───────────────────────┬──────┴──────┬───────────────���───────┐               │
+│          │                       │             │                       │               │
+│          ▼                       ▼             ▼                       ▼               │
+│  ┌──────────────┐        ┌─────────────┐ ┌──────────────┐      ┌──────────────┐        │
+│  │series_stats  │        │series_genres│ │series_alt_   │      │   chapters   │        │
+│  └──────────────┘        └─────────────┘ │titles        │      │  ───────────  │        │
+│                                 │        └──────────────┘      │  id, number  │        │
+│                                 ▼                              └───────┬──────┘        │
+│                          ┌─────────────┐                               │               │
+│                          │   genres    │                               │               │
+│                          └─────────────┘                               │               │
+│                                                          ┌─────────────┼─────────────┐ │
+│                                                          │             │             │ │
+│                                                          ▼             ▼             ▼ │
+│                                                   ┌───────────┐ ┌─────────────┐ ┌─────────┐
+│                                                   │   pages   │ │chapter_stats│ │chapter_ │
+│                                                   │ ───────── │ └─────────────┘ │purchases│
+│                                                   │ image_path│                 └─────────┘
+│                                                   └───────────┘                          │
+│                                                                                          │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 7. QUERY PATTERNS & INDEXES
+
+### Các Query Phổ biến nhất
+
+**1. Homepage - Latest Updates:**
+```sql
+-- Lấy 20 chapters mới nhất với series info
+SELECT c.id, c. number, c.title, c.published_at,
+       s.id as series_id, s.title as series_title, s.slug, s.cover_url
+FROM chapters c
+JOIN series s ON s.id = c.series_id
+WHERE c.is_published = true
+ORDER BY c.published_at DESC
+LIMIT 20;
+
+-- Index cần: 
+CREATE INDEX idx_chapters_latest 
+ON chapters(published_at DESC) 
+WHERE is_published = true
+INCLUDE (series_id, number, title);
+```
+
+**2. Series Detail Page:**
+```sql
+-- Series info + stats + chapters list
+SELECT s.*, ss.total_views, ss.followers_count, ss.rating_avg
+FROM series s
+JOIN series_stats ss ON ss.series_id = s.id
+WHERE s.slug = 'one-piece';
+
+-- Chapters của series
+SELECT c.id, c.number, c.title, c.published_at, c.pages_count,
+       cs.views_count
+FROM chapters c
+LEFT JOIN chapter_stats cs ON cs.chapter_id = c.id
+WHERE c.series_id = ?  AND c.is_published = true
+ORDER BY c.number DESC;
+```
+
+**3. Reading Page:**
+```sql
+-- Lấy pages của chapter
+SELECT id, page_number, image_path, width, height, blurhash
+FROM pages
+WHERE chapter_id = ? 
+ORDER BY page_number ASC;
+
+-- Index: 
+CREATE INDEX idx_pages_chapter 
+ON pages(chapter_id, page_number);
+```
+
+**4. User's Library:**
+```sql
+-- Truyện đang theo dõi + progress
+SELECT s.id, s.title, s.slug, s.cover_url,
+       rp.last_chapter_id, rp.progress_percent, rp.updated_at,
+       c.number as last_read_chapter
+FROM series_follows sf
+JOIN series s ON s.id = sf.series_id
+LEFT JOIN reading_progress rp ON rp.series_id = s. id AND rp.user_id = sf.user_id
+LEFT JOIN chapters c ON c.id = rp.last_chapter_id
+WHERE sf. user_id = ?
+ORDER BY COALESCE(rp.updated_at, sf.created_at) DESC;
+```
+
+**5. Rankings:**
+```sql
+-- Top trending (dựa vào weekly views)
+SELECT s.id, s.title, s.slug, s.cover_url,
+       ss.weekly_views, ss.rating_avg
+FROM series s
+JOIN series_stats ss ON ss.series_id = s.id
+WHERE s.visibility = 'public'
+ORDER BY ss.weekly_views DESC
+LIMIT 10;
+
+-- Index:
+CREATE INDEX idx_series_stats_ranking 
+ON series_stats(weekly_views DESC);
+```
+
+---
+
+## 8. MIGRATION STRATEGY
+
+### Từ Schema hiện tại → Schema mới
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          MIGRATION PHASES                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  Phase 1: Non-breaking additions (Có thể deploy ngay)                       │
+│  ─────────────────────────────────────────────────────                      │
+│  ├── Thêm tables mới:  wallets, ledger_entries, transactions                │
+│  ├── Thêm tables mới: series_stats, chapter_stats, user_stats              │
+│  ├── Thêm columns mới vào existing tables                                   │
+│  └── Tạo indexes mới                                                         │
+│                                                                              │
+│  Phase 2: Data migration (Background job)                                   │
+│  ─────────────────────────────────────────                                  │
+│  ├── Populate series_stats từ existing data                                 │
+│  ├── Create wallets cho existing users                                      │
+│  ├── Migrate reading history                                                 │
+│  └── Verify data integrity                                                   │
+│                                                                              │
+│  Phase 3: Code updates (Gradual rollout)                                    │
+│  ─────────────────────────────────────────                                  │
+│  ├── Update queries to use new tables                                       │
+│  ├── Feature flags for new commerce features                                │
+│  └── Deprecate old columns/tables                                            │
+│                                                                              │
+│  Phase 4: Cleanup (After validation)                                        │
+│  ────────────────────────────────────                                       │
+│  ├── Drop deprecated columns                                                 │
+│  ├── Drop deprecated indexes                                                 │
+│  └── Final optimization                                                      │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 9. TÓM TẮT BEST PRACTICES
+
+| Aspect | Recommendation |
+|--------|----------------|
+| **Primary Keys** | UUID v4 (distributed-friendly) |
+| **Timestamps** | TIMESTAMPTZ (timezone-aware) |
+| **Money/Balance** | BIGINT (không dùng DECIMAL để tránh floating point) |
+| **URLs/Paths** | Lưu relative path, không lưu full URL |
+| **Counters** | Denormalize vào *_stats tables, async update |
+| **Soft Delete** | `deleted_at` column thay vì DELETE |
+| **Audit** | `created_at`, `updated_at` mọi table |
+| **Enums** | PostgreSQL ENUM type (type-safe) |
+| **JSON Data** | JSONB với GIN index |
+| **Full-text Search** | pg_trgm extension + GIN indexes |
+
+---
+
+**Kết luận:**  Schema này được thiết kế để: 
+1. ✅ Handle millions of pages efficiently
+2. ✅ Support premium/freemium model
+3. ✅ Scale horizontally (UUID, denormalization)
+4. ✅ Fast reads (strategic indexes, caching)
+5. ✅ Audit-friendly (double-entry bookkeeping)
+6. ✅ Flexible (JSONB for extensibility)

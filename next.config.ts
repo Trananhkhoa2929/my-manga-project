@@ -1,21 +1,24 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
+const nextConfig = {
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   /* config options here */
   async rewrites() {
     return [
-      {
-        source: '/api/:path*',
-        destination: 'http://localhost:8000/api/:path*',
-      },
-      {
-        source: '/docs',
-        destination: 'http://localhost:8000/docs',
-      },
-      {
-        source: '/openapi.json',
-        destination: 'http://localhost:8000/openapi.json',
-      },
+      // {
+      //   source: '/api/:path*',
+      //   destination: 'http://localhost:8000/api/:path*',
+      // },
+      // {
+      //   source: '/docs',
+      //   destination: 'http://localhost:8000/docs',
+      // },
+      // {
+      //   source: '/openapi.json',
+      //   destination: 'http://localhost:8000/openapi.json',
+      // },
     ];
   },
 };

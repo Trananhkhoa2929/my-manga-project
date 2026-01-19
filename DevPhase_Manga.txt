@@ -1,0 +1,1253 @@
+# 🚀 LỘ TRÌNH PHÁT TRIỂN CHI TIẾT:  MANGAHUB PLATFORM
+
+## Tổng quan Chiến lược
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────────────┐
+│                              MANGAHUB EVOLUTION ROADMAP                                   │
+│                                    Tổng thời gian: 24 tuần                                │
+├──────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                           │
+│   PHASE 0        PHASE 1         PHASE 2         PHASE 3         PHASE 4        PHASE 5  │
+│   Foundation     Reader Core     Editor Pro      Commerce        Scale          Launch   │
+│   ──────────     ───────────     ──────────      ────────        ─────          ──────   │
+│   2 tuần         5 tuần          4 tuần          5 tuần          4 tuần         4 tuần   │
+│                                                                                           │
+│   ┌──────┐      ┌─────────┐     ┌─────────┐     ┌─────────┐     ┌────────┐    ┌───────┐ │
+│   │ FSD  │  →   │ Viewer  │  →  │ Canvas  │  →  │ Wallet  │  →  │  K8s   │ →  │ Go    │ │
+│   │Setup │      │ + Auth  │     │ Editor  │     │ + Pay   │     │ + CDN  │    │ Live  │ │
+│   └──────┘      └─────────┘     └─────────┘     └─────────┘     └────────┘    └───────┘ │
+│                                                                                           │
+│   MVP            Beta            Alpha           Commercial       Production    Launch   │
+│   ─��─            ────            ─────           ──────────       ──────────    ──────   │
+│   Internal       50 Users        200 Users       1K Users         10K Users     Public  │
+│                                                                                           │
+└──────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+# 📋 PHASE 0:  FOUNDATION SETUP
+## ⏱️ Thời gian:  2 tuần | 👥 Team: 1-2 Frontend Dev
+
+### Mục tiêu
+> Thiết lập nền tảng kiến trúc FSD, môi trường phát triển Docker, và UI Kit cơ bản
+
+---
+
+### Tuần 1: Restructure sang Feature-Sliced Design
+
+#### Bước 1.1: Phân tích và Mapping
+**Công việc:**
+- Audit toàn bộ code hiện tại trong `src/`
+- Lập danh sách components, pages, hooks, stores
+- Mapping từng file vào 6 layers của FSD: 
+  - `shared/` → UI Kit, utils, configs
+  - `entities/` → Comic, Chapter, User, Page, Team
+  - `features/` → Auth, Like, Bookmark, Share, Reading Progress
+  - `widgets/` → Header, Sidebar, ComicViewer, MangaEditor
+  - `pages/` → Home, ComicDetail, Reading, Editor, Projects
+  - `app/` → Providers, Layouts, Routes
+
+**Deliverable:** Sơ đồ migration chi tiết (Notion/Miro)
+
+#### Bước 1.2: Tạo cấu trúc thư mục mới
+**Công việc:**
+- Tạo folder structure theo FSD
+- Mỗi slice có cấu trúc chuẩn:  `ui/`, `model/`, `api/`, `lib/`, `index.ts`
+- Cấu hình path aliases trong `tsconfig.json`:
+  - `@shared/*`, `@entities/*`, `@features/*`, `@widgets/*`, `@pages/*`, `@app/*`
+
+**Deliverable:** Folder structure hoàn chỉnh (rỗng)
+
+#### Bước 1.3: Migration Code
+**Công việc:**
+- Di chuyển từng module theo thứ tự:  shared → entities → features → widgets → pages
+- Cập nhật import paths
+- Fix circular dependencies nếu có
+
+**Deliverable:** Codebase đã migrate sang FSD
+
+#### Bước 1.4: ESLint Boundaries
+**Công việc:**
+- Cài đặt `eslint-plugin-boundaries`
+- Cấu hình rules ngăn import ngược chiều (entities không được import features)
+- Test rules hoạt động đúng
+
+**Deliverable:** ESLint config với FSD rules
+
+---
+
+### Tuần 2: DevOps Foundation
+
+#### Bước 2.1: Docker Compose Development
+**Công việc:**
+- Viết `docker-compose.dev.yml` với các services:
+  - **PostgreSQL 16**: Database chính
+  - **Redis 7**: Caching, session, rate limiting
+  - **MinIO**:  S3-compatible object storage (local)
+  - **RabbitMQ**: Message queue cho async jobs
+  - **Imgproxy**: Image processing server
+- Cấu hình volumes, networks, healthchecks
+- Script khởi tạo database từ `schema.sql`
+
+**Deliverable:** `docker-compose.dev.yml` chạy được 1 command
+
+#### Bước 2.2: Environment Configuration
+**Công việc:**
+- Tạo `.env.example` với tất cả variables cần thiết
+- Phân loại:  Development / Staging / Production
+- Tạo script validate env vars
+
+**Deliverable:** Environment template hoàn chỉnh
+
+#### Bước 2.3: Shared UI Kit
+**Công việc:**
+- Migrate/tạo mới các base components:
+  - **Button**: Primary, Secondary, Ghost, Icon variants
+  - **Input**: Text, Password, Search, Textarea
+  - **Modal**: Base modal với animations
+  - **Card**: Container component
+  - **Skeleton**: Loading placeholders
+  - **Toast**:  Notification system (success, error, warning, info)
+  - **Dropdown**: Select, Menu dropdown
+  - **Tabs**: Tab navigation
+- Document với Storybook (optional)
+
+**Deliverable:** UI Kit với 8+ components
+
+#### Bước 2.4: API Base Client
+**Công việc:**
+- Setup Axios/fetch wrapper với: 
+  - Base URL configuration
+  - Request/Response interceptors
+  - Error handling standardized
+  - Auth token injection
+  - Retry logic
+- TypeScript types cho API responses
+
+**Deliverable:** `shared/api/` module hoàn chỉnh
+
+---
+
+### ✅ Outcome Phase 0
+
+| Metric | Target |
+|--------|--------|
+| Cấu trúc thư mục | FSD 6-layer compliant |
+| Docker services | 5 services chạy stable |
+| UI Components | 8+ shared components |
+| ESLint Rules | FSD boundaries enforced |
+| Dev Setup Time | < 5 phút từ clone đến run |
+
+**Sản phẩm:** 
+- Codebase sạch, có tổ chức
+- Local environment đầy đủ
+- Sẵn sàng cho feature development
+
+---
+
+# 📖 PHASE 1: READER CORE
+## ⏱️ Thời gian: 5 tuần | 👥 Team: 2 Frontend Dev
+
+### Mục tiêu
+> Xây dựng trải nghiệm đọc truyện hoàn chỉnh, mượt mà như Webtoon/NetTruyen
+
+---
+
+### Tuần 3-4: Comic Viewer Widget
+
+#### Bước 1.1: Virtualized Image List
+**Mục tiêu:** Render 100+ ảnh mượt mà, 60fps
+
+**Công việc:**
+- Implement virtualization engine (tự viết hoặc dùng `@tanstack/react-virtual`)
+- Chỉ render ảnh trong viewport + 2-3 ảnh buffer (trên/dưới)
+- Tính toán dynamic height dựa trên aspect ratio ảnh
+- Recycle DOM nodes khi scroll
+
+**Logic:**
+```
+Viewport: 1000px height
+Mỗi ảnh: ~1500px height
+→ Chỉ render 2-3 ảnh cùng lúc thay vì 100 ảnh
+→ DOM nodes:  3 thay vì 100
+→ Memory: 30MB thay vì 1GB
+```
+
+**Deliverable:** `VirtualizedImageList` component
+
+#### Bước 1.2: Image Preloading Strategy
+**Mục tiêu:** Ảnh tiếp theo đã sẵn sàng khi user scroll tới
+
+**Công việc:**
+- Preload 3-5 ảnh phía trước
+- Priority queue: ảnh gần viewport được ưu tiên
+- Cancel preload ảnh đã scroll qua
+- Progressive loading: blur → full quality
+
+**Logic:**
+```
+User đang xem trang 5
+→ Đã load:  3, 4, 5, 6, 7
+→ Đang preload: 8, 9, 10
+→ Đã unload: 1, 2
+```
+
+**Deliverable:** `ImagePreloader` service
+
+#### Bước 1.3: Imgproxy Integration
+**Mục tiêu:** Ảnh được optimize on-the-fly
+
+**Công việc:**
+- Custom Image Loader cho Next.js
+- URL signing cho Imgproxy
+- Auto WebP/AVIF detection
+- Responsive sizes based on device
+
+**Logic:**
+```
+Original: s3://bucket/manga/ch1/page1.png (5MB)
+Request: /resize: 800/quality:80/format:webp/... 
+Response:  Optimized WebP (200KB)
+```
+
+**Deliverable:** `imgproxyLoader` cho next/image
+
+#### Bước 1.4: Viewer Controls UI
+**Công việc:**
+- Top bar: Back, Title, Settings
+- Zoom controls: +/-, fit width, fit height
+- Brightness slider
+- Reading mode toggle:  Webtoon (scroll) / Paged
+- Page navigator: slider hoặc dropdown
+
+**Deliverable:** `ViewerControls` component
+
+#### Bước 1.5: Reading Mode Switcher
+**Công việc:**
+- **Webtoon mode**: Cuộn dọc liên tục
+- **Paged mode**: Từng trang, swipe trái/phải
+- **RTL mode**: Manga Nhật đọc phải→trái
+- Persist preference trong localStorage
+
+**Deliverable:** 3 reading modes hoạt động
+
+#### Bước 1.6: Viewer State Management
+**Công việc:**
+- Zustand store cho viewer state
+- Persist settings (zoom, brightness, mode)
+- Track reading progress per chapter
+- Auto-save progress mỗi 30s
+
+**Deliverable:** `useViewerStore` với persistence
+
+---
+
+### Tuần 5: Reading Experience Enhancement
+
+#### Bước 2.1: Chapter Navigation
+**Công việc:**
+- Prev/Next chapter buttons
+- Chapter dropdown selector
+- Auto-load next chapter khi scroll hết
+- Confirm dialog khi jump chapter
+
+**Deliverable:** Seamless chapter navigation
+
+#### Bước 2.2: Reading Progress Feature
+**Công việc:**
+- Track % đã đọc
+- "Continue Reading" button trên trang chi tiết
+- History list các truyện đã đọc
+- Sync với server (nếu logged in)
+
+**Deliverable:** `reading-progress` feature slice
+
+#### Bước 2.3: Keyboard Shortcuts
+**Công việc:**
+- Arrow keys: navigate pages
+- Space: scroll down
+- F:  fullscreen
+- Esc: exit fullscreen/close controls
+- +/-: zoom
+
+**Deliverable:** Keyboard navigation hoàn chỉnh
+
+#### Bước 2.4: Mobile Gestures
+**Công việc:**
+- Tap left/right edge: prev/next page
+- Tap center: toggle controls
+- Pinch zoom
+- Double tap: fit width toggle
+- Swipe left/right (paged mode)
+
+**Deliverable:** Touch gestures support
+
+---
+
+### Tuần 6-7: Authentication System
+
+#### Bước 3.1: NextAuth. js Setup
+**Công việc:**
+- Cấu hình NextAuth với providers: 
+  - Credentials (email/password)
+  - Google OAuth
+  - Facebook OAuth (optional)
+- JWT strategy với refresh token
+- Session management
+
+**Deliverable:** Auth backend hoàn chỉnh
+
+#### Bước 3.2: Auth UI Components
+**Công việc:**
+- Login form với validation (zod + react-hook-form)
+- Register form với username check
+- Forgot password flow
+- OAuth buttons (Google, Facebook)
+- Auth modal (popup thay vì redirect)
+
+**Deliverable:** Auth UI components
+
+#### Bước 3.3: Auth Store & Middleware
+**Công việc:**
+- Zustand auth store sync với NextAuth session
+- Protected routes middleware
+- Role-based access (reader, translator, admin)
+- Auto redirect after login
+
+**Deliverable:** Auth state management
+
+#### Bước 3.4: User Profile
+**Công việc:**
+- Profile page với avatar, display name
+- Edit profile form
+- Change password
+- Reading history
+- Followed comics list
+
+**Deliverable:** User profile feature
+
+---
+
+### ✅ Outcome Phase 1
+
+| Metric | Target |
+|--------|--------|
+| Page Load Time | < 2s for first page |
+| Scroll Performance | 60fps constant |
+| Memory Usage | < 100MB for 100-page chapter |
+| Image Optimization | 70% size reduction via Imgproxy |
+| Auth Providers | 2+ (Credentials + Google) |
+| Mobile Experience | Touch gestures working |
+
+**Sản phẩm:**
+- Trải nghiệm đọc truyện ngang Webtoon
+- Authentication hoàn chỉnh
+- Reading progress tracking
+- Sẵn sàng cho 50 beta users
+
+**So sánh:**
+| Feature | NetTruyen | MangaHub (Phase 1) |
+|---------|-----------|-------------------|
+| Image Loading | Basic lazy load | Virtualized + Preload |
+| Formats | JPG/PNG | WebP/AVIF auto |
+| Reading Modes | 1 (scroll) | 3 (scroll, paged, RTL) |
+| Progress Sync | ❌ | ✅ |
+| Mobile Gestures | Basic | Full support |
+
+---
+
+# 🎨 PHASE 2: EDITOR PRO
+## ⏱️ Thời gian:  4 tuần | 👥 Team: 2 Frontend Dev
+
+### Mục tiêu
+> Nâng cấp MangaEditor thành công cụ professional, hỗ trợ đầy đủ workflow scanlation
+
+---
+
+### Tuần 8-9: Canvas Editor Enhancement
+
+#### Bước 1.1: Layer System Nâng cao
+**Mục tiêu:** Quản lý layers như Photoshop
+
+**Công việc:**
+- Layer panel UI với drag & drop reorder
+- Layer visibility toggle (eye icon)
+- Layer lock (prevent editing)
+- Layer opacity
+- Layer grouping
+- Merge layers
+- Duplicate layer
+
+**Layer Structure:**
+```
+📁 Layers
+├── 📄 Text Layer 3 (Dialogue)
+├── 📄 Text Layer 2 (SFX)
+├── 📄 Text Layer 1 (Narration)
+├── 🖌�� Drawing Layer (Clean bubbles)
+├── 🔷 Shape Layer (White covers)
+└── 🖼️ Background (Original image) [Locked]
+```
+
+**Deliverable:** Professional layer panel
+
+#### Bước 1.2: Text Tool Pro
+**Mục tiêu:** Typography chuyên nghiệp cho manga
+
+**Công việc:**
+- Font selector với preview (20+ fonts phù hợp manga)
+- Font size, weight, style controls
+- Text color + stroke (outline) color
+- Shadow settings (color, blur, offset)
+- **Vertical text** (縦書き) cho manga Nhật
+- Text alignment (left, center, right, justify)
+- Letter spacing, line height
+- Text along path (curved text)
+- Bounding box auto-resize
+
+**Deliverable:** Text tool ngang Clip Studio Paint
+
+#### Bước 1.3: Drawing Tools
+**Mục tiêu:** Clean bubble text hiệu quả
+
+**Công việc:**
+- Brush tool với pressure sensitivity (nếu có tablet)
+- Brush size slider
+- Brush hardness/softness
+- Eraser tool
+- Color picker (eyedropper)
+- Fill tool (bucket)
+- **White brush preset** (cho clean bubble nhanh)
+
+**Deliverable:** Drawing toolkit cơ bản
+
+#### Bước 1.4: Shape Tools
+**Mục tiêu:** Cover text boxes nhanh chóng
+
+**Công việc:**
+- Rectangle, Rounded Rectangle
+- Ellipse, Circle
+- Polygon
+- Fill color, stroke color, stroke width
+- Quick white rectangle (1-click cover)
+
+**Deliverable:** Shape tools
+
+#### Bước 1.5: Transform Tools
+**Mục tiêu:** Điều chỉnh elements chính xác
+
+**Công việc:**
+- Selection tool với bounding box
+- Move, Rotate, Scale
+- Free transform (drag corners)
+- Flip horizontal/vertical
+- Align tools (align left, center, distribute)
+- Snap to grid/guides
+
+**Deliverable:** Transform capabilities
+
+---
+
+### Tuần 10: History & Collaboration
+
+#### Bước 2.1: Undo/Redo System
+**Công việc:**
+- Implement command pattern
+- History stack (50+ actions)
+- Undo/Redo buttons + keyboard shortcuts (Ctrl+Z, Ctrl+Y)
+- History panel showing action list
+- Jump to any history state
+
+**Deliverable:** Robust undo/redo
+
+#### Bước 2.2: Auto-Save & Recovery
+**Công việc:**
+- Auto-save mỗi 30 giây
+- Save indicator ("Saving.. .", "Saved ✓")
+- Crash recovery từ localStorage
+- Version history (optional)
+- Manual save button
+
+**Deliverable:** Never lose work
+
+#### Bước 2.3: Export Options
+**Công việc:**
+- Export single page:  PNG, JPG, WebP
+- Quality selector
+- Export all pages as ZIP
+- Export with/without background
+- Batch export với naming convention
+
+**Deliverable:** Flexible export
+
+#### Bước 2.4: Keyboard Shortcuts Complete
+**Công việc:**
+- V: Select tool
+- T: Text tool
+- B:  Brush tool
+- E:  Eraser
+- R: Rectangle
+- O:  Ellipse
+- Delete: Remove selected
+- Ctrl+C/V: Copy/Paste
+- Ctrl+D: Duplicate
+- Ctrl+G: Group
+- Ctrl+S: Save
+
+**Deliverable:** Photoshop-like shortcuts
+
+---
+
+### Tuần 11: Project Workflow
+
+#### Bước 3.1: Project Dashboard
+**Công việc:**
+- List view của projects
+- Project card:  cover, title, progress, status
+- Filter by status (Draft, In Progress, Review, Published)
+- Search projects
+- Sort by date, name, progress
+
+**Deliverable:** Project overview page
+
+#### Bước 3.2: Chapter Management
+**Công việc:**
+- Chapter list trong project
+- Add chapter: upload ZIP/CBZ hoặc individual images
+- Reorder chapters (drag & drop)
+- Chapter status workflow: 
+  ```
+  Draft → Translating → Editing → Proofreading → Published
+  ```
+- Batch actions (delete, change status)
+
+**Deliverable:** Chapter management
+
+#### Bước 3.3: Page Management
+**Công việc:**
+- Thumbnail grid view của pages
+- Page status indicator
+- Reorder pages
+- Delete/Add pages
+- Bulk upload
+- Quick preview
+
+**Deliverable:** Page management
+
+#### Bước 3.4: Team Assignment (Basic)
+**Công việc:**
+- Assign translator per chapter
+- Assign editor per chapter
+- Assignment notifications (basic)
+- Credits auto-generation
+
+**Deliverable:** Basic team workflow
+
+---
+
+### ✅ Outcome Phase 2
+
+| Metric | Target |
+|--------|--------|
+| Tools Available | 10+ (text, brush, shapes, etc.) |
+| Layer Support | Unlimited layers with grouping |
+| Keyboard Shortcuts | 20+ shortcuts |
+| Auto-save | Every 30s |
+| Export Formats | PNG, JPG, WebP, ZIP |
+
+**Sản phẩm:**
+- Editor ngang Clip Studio Paint (web version)
+- Workflow management cho team
+- Sẵn sàng cho 200 alpha testers
+
+**So sánh:**
+| Feature | Basic Canvas | MangaHub Editor (Phase 2) |
+|---------|--------------|--------------------------|
+| Layers | Basic | Full layer system |
+| Text | Simple | Pro typography + vertical |
+| History | None | 50+ undo steps |
+| Workflow | None | Status-based pipeline |
+| Export | Single file | Batch + ZIP |
+
+---
+
+# 💰 PHASE 3: COMMERCE
+## ⏱️ Thời gian: 5 tuần | 👥 Team: 2 Frontend + 1 Backend
+
+### Mục tiêu
+> Xây dựng hệ thống thanh toán hoàn chỉnh:  Wallet, Premium chapters, Payment gateway
+
+---
+
+### Tuần 12-13: Wallet System
+
+#### Bước 1.1: Database Schema Extension
+**Công việc:**
+- Thêm tables mới: 
+  - `wallets`: user_id, balance, currency
+  - `ledger_entries`: Double-entry bookkeeping
+  - `transactions`: Lịch sử nạp/tiêu
+  - `chapter_purchases`: User đã mua chapter nào
+- Indexes cho performance
+- Constraints cho data integrity
+
+**Schema Logic:**
+```
+Khi User A mua chapter (20 xu):
+├── ledger_entry 1: DEBIT User_A_Wallet 20
+├── ledger_entry 2: CREDIT System_Revenue 20
+└── SUM(DEBIT) == SUM(CREDIT) ✓ (Accounting balanced)
+```
+
+**Deliverable:** Migration scripts
+
+#### Bước 1.2: Wallet Entity
+**Công việc:**
+- `entities/wallet/` slice
+- API endpoints:
+  - GET /api/wallet/balance
+  - GET /api/wallet/transactions
+  - GET /api/wallet/history
+- Types & models
+- Wallet balance component
+
+**Deliverable:** Wallet entity slice
+
+#### Bước 1.3: Wallet UI
+**Công việc:**
+- Balance display trong header
+- Wallet detail page: 
+  - Current balance
+  - Transaction history list
+  - Filter by type (Nạp, Tiêu, Thưởng)
+  - Date range filter
+- Transaction item component
+- Empty state
+
+**Deliverable:** Wallet UI hoàn chỉnh
+
+#### Bước 1.4: Premium Chapter Model
+**Công việc:**
+- Add `is_premium`, `price_coins` vào chapters table
+- Free vs Premium indicator trên chapter list
+- Preview pages cho premium (3-5 trang đầu)
+- Unlock logic trong API
+
+**Deliverable:** Premium chapter support
+
+---
+
+### Tuần 14: Purchase Flow
+
+#### Bước 2.1: Unlock Chapter Feature
+**Công việc:**
+- `features/unlock-chapter/` slice
+- Check ownership trước khi hiển thị nội dung
+- "Mở khóa" button nếu chưa mua
+- Purchase confirmation modal: 
+  - Chapter info
+  - Price
+  - Current balance
+  - "Xác nhận" / "Hủy"
+- Insufficient balance handling → redirect to top-up
+
+**Flow:**
+```
+User click "Đọc Chapter 50" (Premium, 20 xu)
+├── Check:  User đã mua?  → Yes → Show chapter
+└── No → Show unlock modal
+    ├── Balance >= 20 → Confirm → Deduct & Unlock
+    └── Balance < 20 → "Nạp thêm" button → Top-up page
+```
+
+**Deliverable:** Unlock chapter flow
+
+#### Bước 2.2: Purchase API
+**Công việc:**
+- POST /api/chapters/: id/purchase
+- Validate balance
+- Create ledger entries (atomic transaction)
+- Create purchase record
+- Return success/error
+
+**Edge cases:**
+- Concurrent purchase (double spending prevention)
+- Already purchased
+- Chapter not premium
+- Insufficient balance
+
+**Deliverable:** Purchase API robust
+
+#### Bước 2.3: Ownership Check Middleware
+**Công việc:**
+- Middleware check chapter ownership
+- Free chapters:  always accessible
+- Premium chapters: check purchase record
+- Admin bypass
+- Caching ownership status (Redis)
+
+**Deliverable:** Content protection
+
+---
+
+### Tuần 15-16: Payment Gateway
+
+#### Bước 3.1: Top-up Feature
+**Công việc:**
+- `features/wallet-topup/` slice
+- Top-up packages:
+  - 20. 000đ → 20 xu
+  - 50.000đ → 55 xu (bonus 10%)
+  - 100.000đ → 120 xu (bonus 20%)
+  - 200.000đ → 260 xu (bonus 30%)
+- Package selection UI
+
+**Deliverable:** Top-up package selection
+
+#### Bước 3.2: MoMo Integration
+**Công việc:**
+- MoMo payment flow:
+  1. User chọn package
+  2. Create pending transaction
+  3. Redirect to MoMo
+  4. User pays
+  5. MoMo calls webhook
+  6. Verify signature
+  7. Credit user wallet
+  8. Redirect back to app
+- Webhook endpoint
+- Signature verification
+- Idempotency (prevent double credit)
+
+**Deliverable:** MoMo payment working
+
+#### Bước 3.3: VNPay Integration
+**Công việc:**
+- Tương tự MoMo flow
+- VNPay-specific: 
+  - Different signature algorithm
+  - IPN (Instant Payment Notification)
+  - Return URL handling
+- Bank transfer support
+
+**Deliverable:** VNPay payment working
+
+#### Bước 3.4: Payment Status Page
+**Công việc:**
+- Pending page:  "Đang xử lý thanh toán..."
+- Success page: "Nạp thành công!  +XX xu"
+- Failed page: "Thanh toán thất bại" + retry button
+- Transaction reference display
+
+**Deliverable:** Complete payment UX
+
+#### Bước 3.5: Transaction Security
+**Công việc:**
+- Rate limiting (max 10 transactions/hour/user)
+- Fraud detection basic (unusual patterns)
+- Transaction logging
+- Admin review for large amounts
+- Refund capability (manual)
+
+**Deliverable:** Secure payment system
+
+---
+
+### ✅ Outcome Phase 3
+
+| Metric | Target |
+|--------|--------|
+| Payment Gateways | 2 (MoMo + VNPay) |
+| Transaction Success Rate | > 95% |
+| Ledger Accuracy | 100% balanced |
+| Purchase Flow | < 30s end-to-end |
+| Fraud Prevention | Rate limiting + logging |
+
+**Sản phẩm:**
+- Wallet system như Webtoon
+- Premium chapter unlocking
+- Real payment processing
+- Sẵn sàng cho 1,000 paying users
+
+**Revenue Model:**
+```
+Assumptions:
+├── 1,000 users
+├── 10% paying users = 100
+├── Average top-up:  50,000đ/month
+├── Revenue: 5,000,000đ/month
+└── Take rate from creators: 30%
+    └── Net revenue: 1,500,000đ/month
+```
+
+---
+
+# 🚀 PHASE 4: SCALE
+## ⏱️ Thời gian: 4 tuần | 👥 Team: 1 Frontend + 1 DevOps
+
+### Mục tiêu
+> Chuẩn bị infrastructure cho 10,000+ concurrent users
+
+---
+
+### Tuần 17-18: CDN & Image Delivery
+
+#### Bước 1.1: CloudFront Setup
+**Công việc:**
+- Create CloudFront distribution
+- Origin:  Imgproxy server
+- Cache behaviors:
+  - Images: 30 days cache
+  - API:  No cache
+- Gzip/Brotli compression
+- Custom domain setup
+
+**Deliverable:** CDN serving images
+
+#### Bước 1.2: Signed Cookies Implementation
+**Mục tiêu:** Bảo vệ premium content
+
+**Công việc:**
+- Generate CloudFront key pair
+- Cookie signing logic trong API
+- Set cookie sau khi purchase
+- Cookie scope: `/comics/{series}/{chapter}/*`
+- Cookie expiry: 24 hours (re-auth needed)
+
+**Flow:**
+```
+User mua Chapter 50 của One Piece
+├── API set signed cookie:  
+│   Path: /comics/one-piece/chapter-50/*
+│   Expires: 24h
+├── Browser gửi cookie khi load ảnh
+├── CloudFront validate cookie
+└── Trả về ảnh nếu valid
+```
+
+**Deliverable:** Content protection via signed cookies
+
+#### Bước 1.3: Image Scrambling (Anti-Leech)
+**Công việc:**
+- Scramble ảnh thành tiles khi upload
+- Store scramble key per chapter
+- Frontend unscramble khi render (Canvas)
+- Scrapers tải về chỉ được ảnh xáo trộn
+
+**Logic:**
+```
+Original Image: 
+┌─────────────┐
+│  1  │  2  │
+├─────┼─────┤
+│  3  │  4  │
+└─────────────┘
+
+Scrambled (stored):
+┌─────────────┐
+│  3  │  1  │
+├─────┼─────┤
+│  4  │  2  │
+└─────────────┘
+
+Client unscrambles using key → Shows original
+```
+
+**Deliverable:** Anti-scraping protection
+
+---
+
+### Tuần 19: Caching Strategy
+
+#### Bước 2.1: Redis Caching Layer
+**Công việc:**
+- Cache patterns:
+  - **Hot data**: Top 10 trending, Homepage banners (TTL:  5 min)
+  - **User session**: Auth tokens (TTL: 7 days)
+  - **Rate limiting**: Request counts (TTL: 1 hour)
+  - **Chapter ownership**: User purchases (TTL: 1 hour)
+- Cache invalidation strategy
+- Cache warming on deploy
+
+**Deliverable:** Redis caching implemented
+
+#### Bước 2.2: View Count với HyperLogLog
+**Công việc:**
+- PFADD view: comic:{id} {user_ip}
+- Unique view counting
+- Memory:  ~12KB per comic (millions of views)
+- Cronjob sync to PostgreSQL every 10 min
+
+**Deliverable:** Scalable view counting
+
+#### Bước 2.3: API Response Caching
+**Công việc:**
+- Cache GET endpoints: 
+  - Comic detail:  5 min
+  - Chapter list: 5 min
+  - User profile: 1 min
+- Cache-Control headers
+- ETag support
+- Stale-while-revalidate
+
+**Deliverable:** API performance boost
+
+---
+
+### Tuần 20: Kubernetes Setup
+
+#### Bước 3.1: Containerization
+**Công việc:**
+- Dockerfile cho Frontend (Next.js standalone)
+- Dockerfile cho Python Backend (nếu có)
+- Multi-stage builds (slim images)
+- .dockerignore optimization
+- Image size < 200MB
+
+**Deliverable:** Production-ready Docker images
+
+#### Bước 3.2: Kubernetes Manifests
+**Công việc:**
+- Deployments: 
+  - frontend:  3 replicas
+  - backend: 2 replicas
+  - imgproxy: 2 replicas
+- Services (ClusterIP, LoadBalancer)
+- Ingress với TLS
+- ConfigMaps & Secrets
+- Resource limits (CPU, Memory)
+
+**Deliverable:** K8s manifests
+
+#### Bước 3.3: Horizontal Pod Autoscaler
+**Công việc:**
+- HPA cho frontend:  scale 3→10 based on CPU
+- HPA cho backend: scale 2→5 based on CPU
+- Custom metrics (queue length) cho workers
+
+**Deliverable:** Auto-scaling configured
+
+#### Bước 3.4: Monitoring Stack
+**Công việc:**
+- Prometheus metrics collection
+- Grafana dashboards: 
+  - Request rate
+  - Error rate
+  - Response time (p50, p95, p99)
+  - Pod resource usage
+- Alerting rules (PagerDuty/Slack)
+
+**Deliverable:** Observability setup
+
+---
+
+### ✅ Outcome Phase 4
+
+| Metric | Target |
+|--------|--------|
+| CDN Cache Hit Rate | > 90% |
+| Image Load Time | < 500ms (CDN edge) |
+| API Response Time | < 100ms (p95) |
+| Auto-scale | 3→10 pods in 2 min |
+| Uptime | 99.9% |
+
+**Sản phẩm:**
+- Infrastructure xử lý 10,000+ concurrent users
+- Content protection hoàn chỉnh
+- Monitoring & alerting
+- Sẵn sàng cho public launch
+
+**Cost Estimation (AWS):**
+```
+Monthly (10K users):
+├── EKS Cluster: $73
+├── EC2 (3x t3.medium): $100
+├── RDS PostgreSQL: $50
+├── ElastiCache Redis: $40
+├── S3 Storage (1TB): $23
+├── CloudFront (5TB): $85
+├── Misc: $30
+└── Total: ~$400/month
+```
+
+---
+
+# 🎯 PHASE 5: LAUNCH
+## ⏱️ Thời gian: 4 tuần | 👥 Full Team
+
+### Mục tiêu
+> Polish, testing, soft launch, và public launch
+
+---
+
+### Tuần 21-22: Polish & Testing
+
+#### Bước 1.1: Performance Audit
+**Công việc:**
+- Lighthouse audit (target: 90+ all categories)
+- Core Web Vitals: 
+  - LCP < 2.5s
+  - FID < 100ms
+  - CLS < 0.1
+- Bundle size analysis
+- Remove unused dependencies
+- Code splitting optimization
+
+**Deliverable:** Performance report & fixes
+
+#### Bước 1.2: Cross-browser Testing
+**Công việc:**
+- Test trên:  Chrome, Firefox, Safari, Edge
+- Mobile: iOS Safari, Android Chrome
+- Responsive breakpoints:  320px → 1920px
+- Fix browser-specific bugs
+
+**Deliverable:** Cross-browser compatibility
+
+#### Bước 1.3: Security Audit
+**Công việc:**
+- OWASP top 10 checklist
+- SQL injection testing
+- XSS testing
+- CSRF protection verify
+- Rate limiting verify
+- Dependency vulnerability scan (npm audit)
+
+**Deliverable:** Security report
+
+#### Bước 1.4: Load Testing
+**Công việc:**
+- Tool: k6 hoặc Artillery
+- Scenarios: 
+  - 1,000 concurrent readers
+  - 100 concurrent uploads
+  - 500 concurrent purchases
+- Identify bottlenecks
+- Fix & re-test
+
+**Deliverable:** Load test report
+
+---
+
+### Tuần 23: Soft Launch
+
+#### Bước 2.1: Beta User Onboarding
+**Công việc:**
+- Invite 500 beta users (existing community)
+- Onboarding flow:
+  - Welcome email
+  - Getting started guide
+  - Feedback form link
+- In-app feedback widget
+
+**Deliverable:** 500 active beta users
+
+#### Bước 2.2: Bug Bash
+**Công việc:**
+- Daily bug triage
+- Priority classification (P0, P1, P2)
+- P0 bugs: fix within 24h
+- P1 bugs: fix within 3 days
+- Track in GitHub Issues
+
+**Deliverable:** Bug count < 10 P1
+
+#### Bước 2.3: Analytics Setup
+**Công việc:**
+- Google Analytics 4
+- Custom events: 
+  - chapter_read
+  - chapter_purchase
+  - user_signup
+  - search_query
+- Conversion funnels
+- User flow analysis
+
+**Deliverable:** Analytics dashboard
+
+#### Bước 2.4: Content Seeding
+**Công việc:**
+- Partner với 5-10 scanlation teams
+- Migrate existing translations
+- 100+ chapters content sẵn sàng
+- Featured content curation
+
+**Deliverable:** Content library
+
+---
+
+### Tuần 24: Public Launch
+
+#### Bước 3.1: Launch Preparation
+**Công việc:**
+- Launch checklist verification
+- Rollback plan documented
+- On-call schedule
+- Status page setup (statuspage.io)
+- Social media accounts ready
+
+**Deliverable:** Launch readiness
+
+#### Bước 3.2: Marketing Push
+**Công việc:**
+- Launch announcement: 
+  - Facebook groups (manga/anime communities)
+  - Reddit (r/manga, r/manhwa)
+  - Discord servers
+- SEO: 
+  - Submit sitemap
+  - Google Search Console
+- Press release (optional)
+
+**Deliverable:** Marketing campaign
+
+#### Bước 3.3: Launch Day
+**Công việc:**
+- Remove beta flag
+- Monitor metrics closely
+- War room:  all hands on deck
+- Respond to issues immediately
+- Celebrate!  🎉
+
+**Deliverable:** LIVE PRODUCT
+
+#### Bước 3.4: Post-Launch
+**Công việc:**
+- Daily metrics review
+- User feedback collection
+- Quick fixes for critical issues
+- Plan Phase 6 features based on feedback
+
+**Deliverable:** Stable production
+
+---
+
+### ✅ Outcome Phase 5 (Final)
+
+| Metric | Target |
+|--------|--------|
+| Lighthouse Score | 90+ |
+| Bug Count (P0/P1) | 0 |
+| Beta User Satisfaction | > 4/5 stars |
+| Content Available | 100+ chapters |
+| Launch Day Uptime | 100% |
+
+---
+
+# 🏆 FINAL OUTCOME:  PRODUCTION PRODUCT
+
+## Feature Comparison với Competitors
+
+| Feature | NetTruyen | Webtoon | MangaHub |
+|---------|-----------|---------|----------|
+| **Reader** |
+| Virtualized Loading | ❌ | ✅ | ✅ |
+| Image Optimization | ❌ | ✅ | ✅ (Imgproxy) |
+| Reading Modes | 1 | 2 | 3 |
+| Progress Sync | ❌ | ✅ | ✅ |
+| Offline Reading | ❌ | ✅ | 🔜 Phase 6 |
+| **Editor** |
+| Web Editor | ❌ | ❌ | ✅ |
+| Layer System | - | - | ✅ |
+| Vertical Text | - | - | ✅ |
+| Team Workflow | - | - | ✅ |
+| **Commerce** |
+| Premium Chapters | ❌ | ✅ | ✅ |
+| Virtual Currency | ❌ | ✅ | ✅ |
+| Local Payment | ❌ | ❌ | ✅ (MoMo, VNPay) |
+| Creator Revenue Share | ❌ | ✅ | ✅ |
+| **Tech** |
+| CDN | ❌ | ✅ | ✅ |
+| Anti-Scraping | ❌ | ✅ | ✅ |
+| Auto-scale | ❌ | ✅ | ✅ |
+
+## Kiến trúc Cuối cùng
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           MANGAHUB ARCHITECTURE                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌──────────────┐         ┌──────────────┐         ┌──────────────┐        │
+│  │   Browser    │────────▶│  CloudFront  │────────▶│   Imgproxy   │        │
+│  │  (Next.js)   │         │     CDN      │         │   (Images)   │        │
+│  └──────────────┘         └──────────────┘         └──────────────┘        │
+│         │                                                   │               │
+│         │ API                                              │ S3            │
+│         ▼                                                   ▼               │
+│  ┌──────────────┐         ┌──────────────┐         ┌──────────────┐        │
+│  │  Kubernetes  │────────▶│    Redis     │         │   MinIO/S3   │        │
+│  │   Cluster    │         │    Cache     │         │   Storage    │        │
+│  │              │         └──────────────┘         └──────────────┘        │
+│  │ ┌──────────┐ │                                                          │
+│  │ │ Frontend │ │         ┌──────────────┐                                 │
+│  │ │  Pods    │ │────────▶│  PostgreSQL  │                                 │
+│  │ └──────────┘ │         │   Database   │                                 │
+│  │              │         └──────────────┘                                 │
+│  │ ┌──────────┐ │                                                          │
+│  │ │ Backend  │ │         ┌──────────────┐                                 │
+│  │ │  Pods    │ │────────▶│  RabbitMQ    │                                 │
+│  │ └──────────┘ │         │    Queue     │                                 │
+│  └──────────────┘         └──────────────┘                                 │
+│                                  │                                          │
+│                                  ▼                                          │
+│                           ┌──────────────┐                                 │
+│                           │  AI Workers  │ ← (Team khác phụ trách)         │
+│                           │  OCR + Trans │                                 │
+│                           └──────────────┘                                 │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+## Timeline Summary
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│                              24 WEEKS TIMELINE                              │
+├────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Week:   1  2  3  4  5  6  7  8  9  10 11 12 13 14 15 16 17 18 19 20 21-24  │
+│         ════ ══════════════ ════════════ ══════════════ ════════ ═════════  │
+│         P0   PHASE 1        PHASE 2      PHASE 3        PHASE 4  PHASE 5   │
+│                                                                             │
+│  P0:  Foundation (FSD + Docker)                                             │
+│  P1: Reader + Auth                                                          │
+│  P2: Editor Pro                                                             │
+│  P3: Commerce (Wallet + Payment)                                            │
+│  P4: Scale (CDN + K8s)                                                      │
+│  P5: Launch                                                                 │
+│                                                                             │
+│  Milestones:                                                                │
+│  ────────────                                                               │
+│  Week 2:   ◆ Dev environment ready                                          │
+│  Week 7:  ◆ Beta release (50 users)                                        │
+│  Week 11: ◆ Alpha release (200 users)                                      │
+│  Week 16: ◆ Commercial ready (1K users)                                    │
+│  Week 20: ◆ Production ready (10K users)                                   │
+│  Week 24: ◆ PUBLIC LAUNCH 🚀                                               │
+│                                                                             │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+## Thành công = ? 
+
+**Định nghĩa thành công sau 24 tuần:**
+
+| Metric | Target |
+|--------|--------|
+| Monthly Active Users | 10,000+ |
+| Daily Active Readers | 2,000+ |
+| Chapters Uploaded | 500+ |
+| Scanlation Teams | 20+ |
+| Monthly Revenue | 10,000,000 VNĐ+ |
+| Uptime | 99.9% |
+| User Satisfaction | 4.5/5 stars |
+
+**Và quan trọng nhất:**
+> 🎯 **Một nền tảng mà scanlation teams MUỐN sử dụng, và readers THÍCH đọc truyện**
+
+---
+
+*Lộ trình này có thể điều chỉnh dựa trên feedback thực tế và resources available.  Flexibility is key!* 🚀

@@ -2,18 +2,43 @@
 
 import React, { useState, useEffect, use } from "react";
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, AlertCircle } from "lucide-react";
 import { ReaderToolbar } from "@/components/features/reader/reader-toolbar";
 import { ImageCanvas } from "@/components/features/reader/image-canvas";
 import { CommentSection } from "@/components/features/comment/comment-section";
 import { ChapterListModal } from "@/components/features/reader/chapter-list-modal";
 import { ReaderSettings } from "@/components/features/reader/reader-settings";
-import { getComicBySlug } from "@/lib/mock-data/comics";
-import { getChapterDetail, generateChapters } from "@/lib/mock-data/chapters";
+// import { getComicBySlug } from "@/lib/mock-data/comics"; // REMOVED
+// import { getChapterDetail, generateChapters } from "@/lib/mock-data/chapters"; // REMOVED
 import { useReadingHistory } from "@/hooks/use-reading-history";
+import { api } from "@shared/api";
+import { Spinner, Button } from "@shared/ui";
 
 interface Props {
   params: Promise<{ slug: string; chapterId: string }>;
+}
+
+// Define types locally for now or import from shared types
+interface ChapterData {
+  id: string;
+  number: number;
+  title: string | null;
+  slug: string;
+  images: {
+    id: string;
+    page: number;
+    src: string;
+    width: number;
+    height: number;
+  }[];
+  nextChapterSlug: string | null;
+  prevChapterSlug: string | null;
+  series: {
+    id: string;
+    slug: string;
+    title: string;
+    thumbnail: string | null;
+  };
 }
 
 export default function ReaderPage({ params }: Props) {
@@ -22,35 +47,73 @@ export default function ReaderPage({ params }: Props) {
   const [showSettings, setShowSettings] = useState(false);
   const { addToHistory } = useReadingHistory();
 
-  const comic = getComicBySlug(slug);
-  const chapterNumber = parseInt(chapterId.replace("chap-", ""));
-  const totalChapters = comic?.latestChapters[0]?.number || 100;
-  const chapter = getChapterDetail(slug, chapterNumber, totalChapters);
-  const allChapters = generateChapters(slug, totalChapters);
+  // Data state
+  const [data, setData] = useState<ChapterData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Save to history on mount
+  // Fetch data
   useEffect(() => {
-    if (comic && chapter) {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        // Using our new API route
+        const response = await api.get<ChapterData>(`/comics/${slug}/chapters/${chapterId}`);
+        setData(response.data);
+      } catch (err) {
+        if (err instanceof Error) {
+          setError(err.message || "Failed to load chapter");
+        } else {
+          setError("Failed to load chapter");
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [slug, chapterId]);
+
+  // Save to history
+  useEffect(() => {
+    if (data) {
       addToHistory({
-        comicId: comic.id,
-        comicSlug: comic.slug,
-        comicTitle: comic.title,
-        comicThumbnail: comic.thumbnail,
-        chapterId: chapter.id,
-        chapterNumber: chapter.number,
+        comicId: data.series.id,
+        comicSlug: data.series.slug,
+        comicTitle: data.series.title,
+        comicThumbnail: data.series.thumbnail || "",
+        chapterId: data.id,
+        chapterNumber: data.number,
         lastPage: 1,
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [comic?.id, chapter?.id]);
+  }, [data]);
 
-  if (!comic || !chapter) {
+  if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <p className="text-text-secondary">Không tìm thấy chương truyện</p>
+        <Spinner size="lg" />
       </div>
     );
   }
+
+  if (error || !data) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-4">
+        <AlertCircle className="h-12 w-12 text-red-500" />
+        <p className="text-text-secondary">{error || "Không tìm thấy chương truyện"}</p>
+        <Link href={`/truyen/${slug}`}>
+          <Button variant="outline">Quay về trang truyện</Button>
+        </Link>
+      </div>
+    );
+  }
+
+  // Helper for allChapters (mock for now because we didn't implement getAllChapters in this route)
+  // But we can open the modal to load them on demand.
+  // For now, pass empty array to modal or implement a separate fetch.
+  // The toolbar expects totalChapters.
+  const totalChapters = 0; // TODO: Fetch or get from series detail
 
   return (
     <div className="pb-24">
@@ -62,29 +125,29 @@ export default function ReaderPage({ params }: Props) {
           </Link>
           <ChevronRight className="h-4 w-4 text-text-muted" />
           <Link
-            href={`/truyen/${comic.slug}`}
+            href={`/truyen/${data.series.slug}`}
             className="max-w-[150px] truncate text-text-secondary hover:text-accent-brand sm:max-w-none"
           >
-            {comic.title}
+            {data.series.title}
           </Link>
           <ChevronRight className="h-4 w-4 text-text-muted" />
-          <span className="text-text-primary">Chapter {chapter.number}</span>
+          <span className="text-text-primary">Chapter {data.number}</span>
         </div>
       </div>
 
       {/* Image Canvas */}
       <ImageCanvas
-        images={chapter.images}
+        images={data.images}
         onPageChange={(page) => {
           // Update reading progress
-          if (comic && chapter) {
+          if (data) {
             addToHistory({
-              comicId: comic.id,
-              comicSlug: comic.slug,
-              comicTitle: comic.title,
-              comicThumbnail: comic.thumbnail,
-              chapterId: chapter.id,
-              chapterNumber: chapter.number,
+              comicId: data.series.id,
+              comicSlug: data.series.slug,
+              comicTitle: data.series.title,
+              comicThumbnail: data.series.thumbnail || "",
+              chapterId: data.id,
+              chapterNumber: data.number,
               lastPage: page,
             });
           }
@@ -95,14 +158,14 @@ export default function ReaderPage({ params }: Props) {
       <div className="mx-auto max-w-[900px] px-4 py-8">
         <div className="flex flex-col items-center justify-center gap-4 rounded-lg bg-background-surface1 p-6 text-center">
           <p className="text-lg font-semibold text-text-primary">
-            Kết thúc Chapter {chapter.number}
+            Kết thúc Chapter {data.number}
           </p>
-          {chapter.nextChapterSlug ? (
+          {data.nextChapterSlug ? (
             <Link
-              href={`/truyen/${comic.slug}/chap/${chapter.nextChapterSlug}`}
+              href={`/truyen/${data.series.slug}/chap/${data.nextChapterSlug}`}
               className="inline-flex items-center gap-2 rounded-lg bg-accent-brand px-6 py-3 font-semibold text-white transition-colors hover:bg-accent-brand/90"
             >
-              Đọc Chapter {chapter.number + 1}
+              Đọc Chapter {Math.floor(data.number) !== data.number ? data.number + 0.5 : data.number + 1}
               <ChevronRight className="h-5 w-5" />
             </Link>
           ) : (
@@ -111,7 +174,7 @@ export default function ReaderPage({ params }: Props) {
             </p>
           )}
           <Link
-            href={`/truyen/${comic.slug}`}
+            href={`/truyen/${data.series.slug}`}
             className="text-sm text-text-secondary hover:text-accent-brand"
           >
             ← Quay về trang truyện
@@ -121,27 +184,27 @@ export default function ReaderPage({ params }: Props) {
 
       {/* Comments */}
       <div className="mx-auto max-w-[900px] px-4">
-        <CommentSection chapterId={chapter.id} />
+        <CommentSection chapterId={data.id} />
       </div>
 
       {/* Reader Toolbar */}
       <ReaderToolbar
-        comicSlug={comic.slug}
-        comicTitle={comic.title}
-        currentChapter={chapter.number}
+        comicSlug={data.series.slug}
+        comicTitle={data.series.title}
+        currentChapter={data.number}
         totalChapters={totalChapters}
-        prevChapterSlug={chapter.prevChapterSlug}
-        nextChapterSlug={chapter.nextChapterSlug}
+        prevChapterSlug={data.prevChapterSlug || null}
+        nextChapterSlug={data.nextChapterSlug || null}
         onOpenChapterList={() => setShowChapterList(true)}
         onOpenSettings={() => setShowSettings(true)}
       />
 
-      {/* Chapter List Modal */}
+      {/* Chapter List Modal - TODO: Fetch real chapters */}
       {showChapterList && (
         <ChapterListModal
-          chapters={allChapters}
-          comicSlug={comic.slug}
-          currentChapterNumber={chapter.number}
+          chapters={[]} // Passing empty for now as we don't fetch all chapters here
+          comicSlug={data.series.slug}
+          currentChapterNumber={data.number}
           onClose={() => setShowChapterList(false)}
         />
       )}

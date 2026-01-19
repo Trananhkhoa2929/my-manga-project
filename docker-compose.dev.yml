@@ -1,0 +1,138 @@
+version: '3.8'
+
+# MangaHub Development Environment
+# Usage: docker-compose -f docker-compose.dev.yml up -d
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: mangahub-postgres
+    environment:
+      POSTGRES_USER: mangahub
+      POSTGRES_PASSWORD: mangahub_dev_password
+      POSTGRES_DB: mangahub
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U mangahub -d mangahub" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mangahub-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: mangahub-redis
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mangahub-network
+
+  # MinIO Object Storage (S3-compatible)
+  minio:
+    image: minio/minio:latest
+    container_name: mangahub-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: mangahub
+      MINIO_ROOT_PASSWORD: mangahub_dev_password
+    ports:
+      - "9000:9000" # API
+      - "9001:9001" # Console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - mangahub-network
+
+  # MinIO Client - Create initial bucket
+  minio-init:
+    image: minio/mc:latest
+    container_name: mangahub-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c " mc alias set myminio http://minio:9000 mangahub mangahub_dev_password; mc mb myminio/mangahub --ignore-existing; mc anonymous set download myminio/mangahub/public; exit 0; "
+    networks:
+      - mangahub-network
+
+  # Imgproxy - Image Processing Server
+  imgproxy:
+    image: darthsim/imgproxy:latest
+    container_name: mangahub-imgproxy
+    environment:
+      IMGPROXY_BIND: :8080
+      IMGPROXY_USE_S3: "true"
+      AWS_ACCESS_KEY_ID: mangahub
+      AWS_SECRET_ACCESS_KEY: mangahub_dev_password
+      IMGPROXY_S3_ENDPOINT: http://minio:9000
+      # Development mode - disable signature check
+      IMGPROXY_KEY: ""
+      IMGPROXY_SALT: ""
+      IMGPROXY_MAX_SRC_RESOLUTION: 50
+      IMGPROXY_MAX_ANIMATION_FRAMES: 1000
+      IMGPROXY_ENABLE_WEBP_DETECTION: "true"
+      IMGPROXY_ENABLE_AVIF_DETECTION: "true"
+      IMGPROXY_ENFORCE_WEBP: "true"
+    ports:
+      - "8080:8080"
+    depends_on:
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "imgproxy", "health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - mangahub-network
+
+  # RabbitMQ Message Queue (Optional - for async jobs)
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: mangahub-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: mangahub
+      RABBITMQ_DEFAULT_PASS: mangahub_dev_password
+    ports:
+      - "5672:5672" # AMQP
+      - "15672:15672" # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+    networks:
+      - mangahub-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  rabbitmq_data:
+
+
+networks:
+  mangahub-network:
+    driver: bridge

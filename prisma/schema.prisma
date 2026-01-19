@@ -1,0 +1,680 @@
+// ===========================================
+// MANGAHUB PRISMA SCHEMA
+// Merged from supabase/schema.sql + Database_ArcDev.txt
+// ===========================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===========================================
+// 1. USERS & AUTHENTICATION
+// ===========================================
+
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  username        String    @unique
+  passwordHash    String?   @map("password_hash")
+  role            UserRole  @default(READER)
+  status          UserStatus @default(ACTIVE)
+  emailVerifiedAt DateTime? @map("email_verified_at")
+  lastLoginAt     DateTime? @map("last_login_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  profile         UserProfile?
+  stats           UserStats?
+  wallet          Wallet?
+  sessions        UserSession[]
+  oauthAccounts   OAuthAccount[]
+  uploadedSeries  Series[]       @relation("SeriesUploader")
+  uploadedChapters Chapter[]     @relation("ChapterUploader")
+  teamMemberships TeamMember[]
+  follows         SeriesFollow[]
+  readingProgress ReadingProgress[]
+  readingHistory  ReadingHistory[]
+  ratings         SeriesRating[]
+  comments        Comment[]
+  chapterPurchases ChapterPurchase[]
+  notifications   Notification[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  READER
+  UPLOADER
+  TRANSLATOR
+  MODERATOR
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+  DELETED
+}
+
+model UserProfile {
+  userId       String   @id @map("user_id")
+  displayName  String?  @map("display_name")
+  avatarUrl    String?  @map("avatar_url")
+  coverUrl     String?  @map("cover_url")
+  bio          String?
+  website      String?
+  socialLinks  Json?    @map("social_links") // {"facebook": "...", "twitter": "..."}
+  preferences  Json?    // {"theme": "dark", "language": "vi"}
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model UserStats {
+  userId          String   @id @map("user_id")
+  followersCount  Int      @default(0) @map("followers_count")
+  followingCount  Int      @default(0) @map("following_count")
+  uploadsCount    Int      @default(0) @map("uploads_count")
+  chaptersCount   Int      @default(0) @map("chapters_count")
+  totalViews      BigInt   @default(0) @map("total_views")
+  reputationScore Int      @default(0) @map("reputation_score")
+  level           Int      @default(1)
+  expPoints       Int      @default(0) @map("exp_points")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_stats")
+}
+
+model UserSession {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  token        String   @unique
+  userAgent    String?  @map("user_agent")
+  ipAddress    String?  @map("ip_address")
+  expiresAt    DateTime @map("expires_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_sessions")
+}
+
+model OAuthAccount {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  provider      String   // "google", "facebook"
+  providerAccountId String @map("provider_account_id")
+  accessToken   String?  @map("access_token")
+  refreshToken  String?  @map("refresh_token")
+  expiresAt     DateTime? @map("expires_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("oauth_accounts")
+}
+
+// ===========================================
+// 2. SERIES (MANGA/MANHWA/MANHUA)
+// ===========================================
+
+model Series {
+  id            String       @id @default(uuid())
+  title         String
+  titleOriginal String?      @map("title_original") // Original Japanese/Korean title
+  slug          String       @unique
+  type          SeriesType   @default(MANGA)
+  status        SeriesStatus @default(ONGOING)
+  country       String       @default("JP") // ISO code
+  year          Int?
+  description   String?
+  author        String?
+  artist        String?
+  coverUrl      String?      @map("cover_url")
+  bannerUrl     String?      @map("banner_url")
+  isNsfw        Boolean      @default(false) @map("is_nsfw")
+  isLicensed    Boolean      @default(false) @map("is_licensed")
+  visibility    Visibility   @default(PUBLIC)
+  uploaderId    String?      @map("uploader_id")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+  publishedAt   DateTime?    @map("published_at")
+
+  // Relations
+  uploader      User?        @relation("SeriesUploader", fields: [uploaderId], references: [id], onDelete: SetNull)
+  stats         SeriesStats?
+  altTitles     SeriesAltTitle[]
+  genres        SeriesGenre[]
+  tags          SeriesTag[]
+  chapters      Chapter[]
+  follows       SeriesFollow[]
+  ratings       SeriesRating[]
+  readingProgress ReadingProgress[]
+  comments      Comment[]    @relation("SeriesComments")
+
+  @@index([slug])
+  @@index([status])
+  @@index([visibility])
+  @@map("series")
+}
+
+enum SeriesType {
+  MANGA
+  MANHWA
+  MANHUA
+  COMIC
+  WEBTOON
+}
+
+enum SeriesStatus {
+  ONGOING
+  COMPLETED
+  HIATUS
+  CANCELLED
+  UPCOMING
+}
+
+enum Visibility {
+  PUBLIC
+  PRIVATE
+  UNLISTED
+}
+
+model SeriesAltTitle {
+  id        String  @id @default(uuid())
+  seriesId  String  @map("series_id")
+  title     String
+  language  String  // "ja", "ko", "zh", "en", "vi"
+  isPrimary Boolean @default(false) @map("is_primary")
+
+  series Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  @@index([seriesId])
+  @@map("series_alt_titles")
+}
+
+model SeriesStats {
+  seriesId       String   @id @map("series_id")
+  totalViews     BigInt   @default(0) @map("total_views")
+  weeklyViews    Int      @default(0) @map("weekly_views")
+  monthlyViews   Int      @default(0) @map("monthly_views")
+  followersCount Int      @default(0) @map("followers_count")
+  chaptersCount  Int      @default(0) @map("chapters_count")
+  ratingAvg      Decimal  @default(0) @map("rating_avg") @db.Decimal(3, 2)
+  ratingCount    Int      @default(0) @map("rating_count")
+  commentsCount  Int      @default(0) @map("comments_count")
+  lastChapterAt  DateTime? @map("last_chapter_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  series Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  @@map("series_stats")
+}
+
+// ===========================================
+// 3. GENRES & TAGS
+// ===========================================
+
+model Genre {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique
+  slug        String  @unique
+  description String?
+
+  series SeriesGenre[]
+
+  @@map("genres")
+}
+
+model SeriesGenre {
+  seriesId String @map("series_id")
+  genreId  Int    @map("genre_id")
+
+  series Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  genre  Genre  @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([seriesId, genreId])
+  @@map("series_genres")
+}
+
+model Tag {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+  slug String @unique
+
+  series SeriesTag[]
+
+  @@map("tags")
+}
+
+model SeriesTag {
+  seriesId String @map("series_id")
+  tagId    Int    @map("tag_id")
+
+  series Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([seriesId, tagId])
+  @@map("series_tags")
+}
+
+// ===========================================
+// 4. CHAPTERS & PAGES
+// ===========================================
+
+model Chapter {
+  id           String        @id @default(uuid())
+  seriesId     String        @map("series_id")
+  number       Decimal       @db.Decimal(10, 2) // Supports 1.5, 2.0, etc.
+  volume       Int?
+  title        String?
+  slug         String
+  language     String        @default("vi")
+  pagesCount   Int           @default(0) @map("pages_count")
+  isPremium    Boolean       @default(false) @map("is_premium")
+  isPublished  Boolean       @default(false) @map("is_published")
+  uploaderId   String?       @map("uploader_id")
+  teamId       String?       @map("team_id")
+  sourceUrl    String?       @map("source_url")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  publishedAt  DateTime?     @map("published_at")
+  scheduledAt  DateTime?     @map("scheduled_at")
+
+  // Relations
+  series       Series        @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  uploader     User?         @relation("ChapterUploader", fields: [uploaderId], references: [id], onDelete: SetNull)
+  team         Team?         @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  stats        ChapterStats?
+  price        ChapterPrice?
+  pages        Page[]
+  credits      ChapterCredit[]
+  purchases    ChapterPurchase[]
+  readingHistory ReadingHistory[]
+  comments     Comment[]     @relation("ChapterComments")
+
+  @@unique([seriesId, number, language])
+  @@index([seriesId, number])
+  @@index([publishedAt])
+  @@map("chapters")
+}
+
+model ChapterStats {
+  chapterId     String   @id @map("chapter_id")
+  viewsCount    BigInt   @default(0) @map("views_count")
+  commentsCount Int      @default(0) @map("comments_count")
+  likesCount    Int      @default(0) @map("likes_count")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@map("chapter_stats")
+}
+
+model ChapterPrice {
+  chapterId       String    @id @map("chapter_id")
+  priceCoins      Int       @map("price_coins")
+  discountPercent Int       @default(0) @map("discount_percent")
+  discountUntil   DateTime? @map("discount_until")
+  freeAfter       DateTime? @map("free_after")
+
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@map("chapter_prices")
+}
+
+model Page {
+  id          String   @id @default(uuid())
+  chapterId   String   @map("chapter_id")
+  pageNumber  Int      @map("page_number")
+  imagePath   String   @map("image_path") // Relative path: series/{id}/chapters/{id}/001.webp
+  width       Int?
+  height      Int?
+  fileSize    Int?     @map("file_size")
+  blurhash    String?
+  
+  // Canvas & Editing
+  canvasData  Json?    @map("canvas_data") // For drawing/editing
+  ocrData     Json?    @map("ocr_data")    // For translated text mapping
+  status      PageStatus @default(RAW)
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([chapterId, pageNumber])
+  @@index([chapterId, pageNumber])
+  @@map("pages")
+}
+
+enum PageStatus {
+  RAW
+  CLEANED
+  TRANSLATED
+  EDITED
+  FINAL
+}
+
+// ===========================================
+// 5. TEAMS & COLLABORATION
+// ===========================================
+
+model Team {
+  id           String   @id @default(uuid())
+  name         String   @unique
+  slug         String   @unique
+  description  String?
+  logoUrl      String?  @map("logo_url")
+  bannerUrl    String?  @map("banner_url")
+  website      String?
+  discordUrl   String?  @map("discord_url")
+  isVerified   Boolean  @default(false) @map("is_verified")
+  isRecruiting Boolean  @default(false) @map("is_recruiting")
+  ownerId      String?  @map("owner_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  members  TeamMember[]
+  chapters Chapter[]
+  credits  ChapterCredit[]
+
+  @@map("teams")
+}
+
+model TeamMember {
+  teamId   String     @map("team_id")
+  userId   String     @map("user_id")
+  role     TeamRole   @default(MEMBER)
+  joinedAt DateTime   @default(now()) @map("joined_at")
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([teamId, userId])
+  @@map("team_members")
+}
+
+enum TeamRole {
+  OWNER
+  ADMIN
+  TRANSLATOR
+  EDITOR
+  PROOFREADER
+  MEMBER
+}
+
+model ChapterCredit {
+  id        String     @id @default(uuid())
+  chapterId String     @map("chapter_id")
+  userId    String?    @map("user_id")
+  teamId    String?    @map("team_id")
+  role      CreditRole
+  note      String?
+
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  team    Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@map("chapter_credits")
+}
+
+enum CreditRole {
+  TRANSLATOR
+  EDITOR
+  PROOFREADER
+  CLEANER
+  TYPESETTER
+  RAW_PROVIDER
+  QUALITY_CHECK
+}
+
+// ===========================================
+// 6. SOCIAL & INTERACTIONS
+// ===========================================
+
+model SeriesFollow {
+  userId    String   @map("user_id")
+  seriesId  String   @map("series_id")
+  notify    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  series Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  @@id([userId, seriesId])
+  @@index([userId])
+  @@index([seriesId])
+  @@map("series_follows")
+}
+
+model ReadingProgress {
+  userId          String   @map("user_id")
+  seriesId        String   @map("series_id")
+  lastChapterId   String?  @map("last_chapter_id")
+  lastPageNumber  Int      @default(1) @map("last_page_number")
+  progressPercent Int      @default(0) @map("progress_percent")
+  startedAt       DateTime @default(now()) @map("started_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  series Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  @@id([userId, seriesId])
+  @@map("reading_progress")
+}
+
+model ReadingHistory {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  chapterId  String    @map("chapter_id")
+  startedAt  DateTime  @default(now()) @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+  pagesRead  Int       @default(0) @map("pages_read")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("reading_history")
+}
+
+model SeriesRating {
+  userId    String   @map("user_id")
+  seriesId  String   @map("series_id")
+  score     Int      // 1-5 or 1-10
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  series Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  @@id([userId, seriesId])
+  @@map("series_ratings")
+}
+
+model Comment {
+  id           String      @id @default(uuid())
+  userId       String      @map("user_id")
+  entityType   CommentType @map("entity_type")
+  seriesId     String?     @map("series_id")
+  chapterId    String?     @map("chapter_id")
+  parentId     String?     @map("parent_id")
+  content      String
+  likesCount   Int         @default(0) @map("likes_count")
+  repliesCount Int         @default(0) @map("replies_count")
+  isPinned     Boolean     @default(false) @map("is_pinned")
+  isHidden     Boolean     @default(false) @map("is_hidden")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  series   Series?   @relation("SeriesComments", fields: [seriesId], references: [id], onDelete: Cascade)
+  chapter  Chapter?  @relation("ChapterComments", fields: [chapterId], references: [id], onDelete: Cascade)
+  parent   Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies  Comment[] @relation("CommentReplies")
+
+  @@index([entityType, seriesId])
+  @@index([entityType, chapterId])
+  @@index([parentId])
+  @@map("comments")
+}
+
+enum CommentType {
+  SERIES
+  CHAPTER
+}
+
+// ===========================================
+// 7. COMMERCE (WALLET & PAYMENTS)
+// ===========================================
+
+model Wallet {
+  id             String   @id @default(uuid())
+  userId         String   @unique @map("user_id")
+  balance        BigInt   @default(0)
+  totalDeposited BigInt   @default(0) @map("total_deposited")
+  totalSpent     BigInt   @default(0) @map("total_spent")
+  currency       String   @default("COIN")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ledgerEntries LedgerEntry[]
+
+  @@map("wallets")
+}
+
+model LedgerEntry {
+  id            String      @id @default(uuid())
+  transactionId String      @map("transaction_id")
+  walletId      String      @map("wallet_id")
+  entryType     EntryType   @map("entry_type")
+  amount        BigInt
+  balanceAfter  BigInt      @map("balance_after")
+  description   String?
+  referenceType String?     @map("reference_type")
+  referenceId   String?     @map("reference_id")
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  wallet      Wallet      @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@index([walletId])
+  @@index([transactionId])
+  @@map("ledger_entries")
+}
+
+enum EntryType {
+  DEBIT
+  CREDIT
+}
+
+model Transaction {
+  id            String            @id @default(uuid())
+  userId        String            @map("user_id")
+  type          TransactionType
+  status        TransactionStatus @default(PENDING)
+  amountCoins   Int               @map("amount_coins")
+  amountMoney   BigInt?           @map("amount_money") // VND
+  paymentMethod String?           @map("payment_method")
+  paymentRef    String?           @map("payment_ref")
+  metadata      Json?
+  createdAt     DateTime          @default(now()) @map("created_at")
+  completedAt   DateTime?         @map("completed_at")
+  expiresAt     DateTime?         @map("expires_at")
+
+  ledgerEntries LedgerEntry[]
+  purchases     ChapterPurchase[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("transactions")
+}
+
+enum TransactionType {
+  TOPUP
+  PURCHASE
+  REFUND
+  REWARD
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model ChapterPurchase {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  chapterId     String   @map("chapter_id")
+  transactionId String   @map("transaction_id")
+  pricePaid     Int      @map("price_paid")
+  purchasedAt   DateTime @default(now()) @map("purchased_at")
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter     Chapter     @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, chapterId])
+  @@map("chapter_purchases")
+}
+
+// ===========================================
+// 8. NOTIFICATIONS
+// ===========================================
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String           @map("user_id")
+  type      NotificationType
+  title     String
+  message   String
+  data      Json?
+  isRead    Boolean          @default(false) @map("is_read")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  NEW_CHAPTER
+  COMMENT_REPLY
+  FOLLOW
+  SYSTEM
+  PAYMENT
+}
+
+// ===========================================
+// 9. ANALYTICS (Daily aggregates)
+// ===========================================
+
+model AnalyticsDaily {
+  id          BigInt   @id @default(autoincrement())
+  date        DateTime @db.Date
+  entityType  String   @map("entity_type")
+  entityId    String   @map("entity_id")
+  views       Int      @default(0)
+  uniqueViews Int      @default(0) @map("unique_views")
+  newFollowers Int     @default(0) @map("new_followers")
+  comments    Int      @default(0)
+
+  @@unique([date, entityType, entityId])
+  @@map("analytics_daily")
+}
