@@ -71,7 +71,7 @@ const seriesList = [
         author: 'SIU',
         artist: 'SIU',
         description: 'Baam leo lên Tháp để tìm Rachel, người bạn duy nhất của anh. Trên hành trình, anh gặp vô số thử thách và bí ẩn.',
-        coverUrl: 'https://example.com/tower-of-god-cover.jpg',
+        coverUrl: 'https://pub-6bf68545476c41e9b8eda7eec49bbcf5.r2.dev/TOG_Cover.jpg',
         genres: ['fantasy', 'adventure', 'manhwa'],
         chapters: [
             { number: 1, title: 'Bóng Tối', pages: 30 },

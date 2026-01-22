@@ -75,6 +75,9 @@ export async function GET(request: Request, props: RouteParams) {
             })
         ]);
 
+        // R2 Public URL for images
+        const r2PublicUrl = process.env.R2_PUBLIC_URL || '';
+
         const data = {
             id: chapter.id,
             number: Number(chapter.number),
@@ -83,20 +86,9 @@ export async function GET(request: Request, props: RouteParams) {
             images: chapter.pages.map(p => ({
                 id: p.id,
                 page: p.pageNumber,
-                src: p.imagePath, // In real app, this should be full URL with CDN.
-                // For now, we return path and frontend handles it, or we prefix it.
-                // Let's prefix with a base path or just return as is if Imgproxy handles it.
-                // The mock returned full URLs. Seed returns 'series/one-piece/ch1/001.webp'.
-                // Frontend's ImagePreloader likely needs full URL or can handle relative if base is set.
-                // Let's return as is, and we will update ImagePreloader or use API to serve images?
-                // Actually, we should probably serve it via a Next.js public route or S3.
-                // For dev local, we can assume it's in public folder OR we mock the URL to placeholder service for now
-                // if file doesn't exist.
-                // WAIT: The user asked to remove mock data. 
-                // If I return 'series/...' and file isn't there, it breaks.
-                // The seed data uses 'series/one-piece/ch1/001.webp'.
-                // I should probably map this to a placeholder service if not found, or trust the seed.
-                // Let's just return what is in DB.
+                src: p.imagePath
+                    ? (p.imagePath.startsWith('http') ? p.imagePath : `${r2PublicUrl}/${p.imagePath}`)
+                    : '/placeholder.jpg',
                 width: p.width || 800,
                 height: p.height || 1200,
             })),

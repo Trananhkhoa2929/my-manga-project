@@ -1,0 +1,354 @@
+Tôi sẽ giúp bạn phân tích cách lưu trữ ảnh và chapters trong dự án manga của bạn, cùng với các công nghệ chuyên nghiệp để xây dựng hệ thống tương tự Webtoon. 
+
+Để hiểu rõ cấu trúc hiện tại của bạn, hãy để tôi xem file seed.ts và schema database: Dựa vào code của bạn, tôi thấy project **MangaHub** đã có cấu trúc database khá chuyên nghiệp rồi!  Để giải thích cách lưu ảnh và chapter như thế nào, đây là phân tích chi tiết:
+
+---
+
+## 📦 **Cấu trúc lưu trữ hiện tại của bạn**
+
+### **1. Database Structure**
+```
+Series (Bộ truyện)
+  └── Chapters (Các chương)
+      └── Pages (Các trang ảnh)
+```
+
+Từ `supabase/schema.sql` và `prisma/seed.ts`:
+
+```sql
+-- Table PAGES lưu thông tin mỗi trang ảnh
+CREATE TABLE pages (
+  id UUID PRIMARY KEY,
+  chapter_id UUID REFERENCES chapters(id),
+  page_number INTEGER,
+  
+  -- ❗ QUAN TRỌNG: Lưu đường dẫn tương đối, KHÔNG lưu full URL
+  original_url TEXT,      -- URL ảnh gốc
+  clean_url TEXT,         -- URL ảnh sau khi AI xử lý
+  final_url TEXT,         -- URL ảnh cuối cùng hiển thị
+  
+  -- Metadata
+  canvas_data JSONB,      -- Dữ liệu editor (text, drawing, shapes...)
+  ocr_data JSONB,         -- Dữ liệu OCR từ AI
+  status VARCHAR(20),     -- 'raw', 'cleaned', 'translated', 'edited', 'final'
+  
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ
+);
+```
+
+---
+
+## 🖼️ **Cách lưu ảnh chuyên nghiệp như Webtoon**
+
+### **Option 1: MinIO (Self-hosted S3) - Hiện tại bạn đang dùng**
+
+```typescript name=prisma/seed.ts url=https://github.com/Trananhkhoa2929/my-manga-project/blob/main/prisma/seed.ts
+// Lưu đường dẫn tương đối theo chuẩn Webtoon: 
+imagePath: `series/${seriesId}/chapters/${chapterId}/001.webp`
+
+// Khi query ra, ghép với CDN URL:
+const fullUrl = `${CDN_BASE_URL}/${imagePath}`;
+// Result: https://cdn.mangahub.com/series/abc-123/chapters/xyz-456/001.webp
+```
+
+**Cấu trúc thư mục trong MinIO:**
+```
+bucket:  mangahub-storage/
+  series/
+    {series-uuid}/
+      chapters/
+        {chapter-uuid}/
+          001.webp  ← Ảnh trang 1
+          002.webp
+          003.webp
+          ... 
+      cover.webp
+      banner.webp
+```
+
+**Code upload ảnh lên MinIO:**
+
+````typescript name=src/lib/storage/minio.ts
+import * as Minio from 'minio';
+
+const minioClient = new Minio. Client({
+  endPoint: process.env.MINIO_ENDPOINT! ,
+  port: 9000,
+  useSSL: false,
+  accessKey: process. env.MINIO_ACCESS_KEY!,
+  secretKey:  process.env.MINIO_SECRET_KEY!,
+});
+
+export async function uploadPageImage(
+  seriesId:  string,
+  chapterId:  string,
+  pageNumber: number,
+  imageBuffer: Buffer
+): Promise<string> {
+  const objectName = `series/${seriesId}/chapters/${chapterId}/${String(pageNumber).padStart(3, '0')}.webp`;
+  
+  await minioClient.putObject(
+    'mangahub-storage',
+    objectName,
+    imageBuffer,
+    {
+      'Content-Type': 'image/webp',
+      'Cache-Control': 'public, max-age=31536000', // Cache 1 năm
+    }
+  );
+
+  return objectName; // Lưu vào database
+}
+````
+
+---
+
+### **Option 2: Cloudflare R2 (Giống S3 nhưng miễn phí bandwidth)**
+
+**Ưu điểm:**
+- ✅ Không tính phí băng thông (egress free)
+- ✅ Tích hợp sẵn CDN của Cloudflare
+- ✅ API tương thích 100% với AWS S3
+
+**Code sử dụng R2:**
+
+````typescript name=src/lib/storage/r2.ts
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+
+const r2Client = new S3Client({
+  region: 'auto',
+  endpoint: process.env.R2_ENDPOINT, // https://<account-id>.r2.cloudflarestorage.com
+  credentials: {
+    accessKeyId:  process.env.R2_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+  },
+});
+
+export async function uploadToR2(
+  key: string, // series/xxx/chapters/yyy/001.webp
+  imageBuffer: Buffer
+) {
+  await r2Client.send(
+    new PutObjectCommand({
+      Bucket: 'mangahub',
+      Key: key,
+      Body: imageBuffer,
+      ContentType: 'image/webp',
+      CacheControl: 'public, max-age=31536000',
+    })
+  );
+
+  // URL public:  https://cdn.mangahub.com/{key}
+  return key;
+}
+````
+
+---
+
+### **Option 3: Supabase Storage (Recommended cho starter)**
+
+Vì bạn đang dùng Supabase, có thể dùng luôn **Supabase Storage**:
+
+````typescript name=src/lib/storage/supabase.ts
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process. env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!  // Server-side only
+);
+
+export async function uploadPageToSupabase(
+  seriesId: string,
+  chapterId: string,
+  pageNumber: number,
+  file: File
+): Promise<string> {
+  const path = `series/${seriesId}/chapters/${chapterId}/${String(pageNumber).padStart(3, '0')}.webp`;
+
+  const { data, error } = await supabase.storage
+    .from('manga-pages')
+    .upload(path, file, {
+      cacheControl: '31536000', // 1 năm
+      upsert: true,
+    });
+
+  if (error) throw error;
+
+  // Lấy public URL
+  const { data: urlData } = supabase.storage
+    .from('manga-pages')
+    .getPublicUrl(path);
+
+  return path; // Lưu vào database
+}
+````
+
+---
+
+## 🔥 **Best Practices như Webtoon**
+
+### **1. Tối ưu hóa ảnh**
+
+````typescript name=src/lib/utils/imageOptimization.ts
+import sharp from 'sharp';
+
+export async function optimizePageImage(inputBuffer: Buffer): Promise<Buffer> {
+  return sharp(inputBuffer)
+    .resize(800, null, { // Max width 800px cho mobile
+      withoutEnlargement: true,
+      fit: 'inside',
+    })
+    .webp({
+      quality: 85,
+      effort: 6, // Balance giữa size và quality
+    })
+    .toBuffer();
+}
+
+// High quality cho desktop
+export async function generateHighQualityVersion(inputBuffer: Buffer): Promise<Buffer> {
+  return sharp(inputBuffer)
+    .resize(1200, null)
+    .webp({ quality: 92 })
+    .toBuffer();
+}
+````
+
+### **2. Lazy Loading & Preloading**
+
+````typescript name=src/components/ChapterReader.tsx
+'use client';
+
+export function ChapterReader({ pages }: { pages: ChapterPage[] }) {
+  const [currentPage, setCurrentPage] = useState(0);
+
+  useEffect(() => {
+    // Preload 3 trang tiếp theo
+    const preloadImages = pages.slice(currentPage + 1, currentPage + 4);
+    preloadImages.forEach(page => {
+      const img = new Image();
+      img.src = page.imageUrl;
+    });
+  }, [currentPage, pages]);
+
+  return (
+    <div className="reader-container">
+      {pages.map((page, i) => (
+        <img
+          key={page.id}
+          src={page.imageUrl}
+          loading={i < 5 ?  'eager' : 'lazy'} // 5 trang đầu load ngay
+          alt={`Page ${page.number}`}
+        />
+      ))}
+    </div>
+  );
+}
+````
+
+### **3. Multi-resolution Images (như Webtoon)**
+
+````typescript name=prisma/schema.prisma
+model Page {
+  id          String   @id @default(uuid())
+  chapterId   String
+  pageNumber  Int
+  
+  // Lưu nhiều versions
+  imagePathOriginal String  // Original quality
+  imagePathHigh     String  // 1200px width
+  imagePathMedium   String  // 800px width
+  imagePathLow      String?  // 400px width (thumbnail)
+  
+  width       Int
+  height      Int
+  blurhash    String?  // Blur placeholder
+  
+  @@unique([chapterId, pageNumber])
+}
+````
+
+### **4. CDN Configuration**
+
+````nginx name=nginx.conf
+# Cloudflare / CDN config
+location ~* \.(webp|jpg|png)$ {
+    expires 365d;
+    add_header Cache-Control "public, immutable";
+    add_header Vary "Accept-Encoding";
+    
+    # Enable CORS
+    add_header Access-Control-Allow-Origin "*";
+}
+````
+
+---
+
+## 🚀 **Workflow upload ảnh hoàn chỉnh**
+
+````typescript name=src/app/api/upload-chapter/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { uploadToR2 } from '@/lib/storage/r2';
+import { optimizePageImage } from '@/lib/utils/imageOptimization';
+import { prisma } from '@/lib/prisma';
+
+export async function POST(req: NextRequest) {
+  const formData = await req.formData();
+  const chapterId = formData.get('chapterId') as string;
+  const files = formData.getAll('pages') as File[];
+
+  const seriesId = await getSeriesIdFromChapter(chapterId);
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const buffer = Buffer.from(await file.arrayBuffer());
+
+    // 1. Tối ưu hóa ảnh
+    const optimizedBuffer = await optimizePageImage(buffer);
+
+    // 2. Upload lên storage
+    const imagePath = await uploadToR2(
+      `series/${seriesId}/chapters/${chapterId}/${String(i + 1).padStart(3, '0')}.webp`,
+      optimizedBuffer
+    );
+
+    // 3. Lưu vào database
+    await prisma.page.create({
+      data: {
+        chapterId,
+        pageNumber: i + 1,
+        imagePath,
+        width: 800,
+        height: 1200,
+        status: 'FINAL',
+      },
+    });
+  }
+
+  return NextResponse. json({ success: true });
+}
+````
+
+---
+
+## 📊 **So sánh công nghệ**
+
+| Giải pháp | Chi phí | Performance | Độ khó | Recommend |
+|-----------|---------|-------------|--------|-----------|
+| **MinIO (Self-hosted)** | $20-50/tháng VPS | ⭐⭐⭐⭐ | Medium | ✅ Dev/Medium scale |
+| **Cloudflare R2** | $0. 015/GB storage | ⭐⭐⭐⭐⭐ | Easy | ✅✅ Production |
+| **Supabase Storage** | Free 1GB, $0.021/GB | ⭐⭐⭐⭐ | Very Easy | ✅ MVP/Startup |
+| **AWS S3 + CloudFront** | $$$$ | ⭐⭐⭐⭐⭐ | Hard | Enterprise only |
+
+---
+
+## 🎯 **Recommendation cho bạn**
+
+Dựa vào code hiện tại, bạn nên:
+
+1. **Phase 1 (MVP):** Dùng **Supabase Storage** - đơn giản nhất, tích hợp sẵn
+2. **Phase 2 (Scale):** Chuyển sang **Cloudflare R2** - tiết kiệm bandwidth
+3. **Database:** Giữ nguyên cấu trúc hiện tại (đã tốt!)
+
+Bạn muốn tôi tạo một **Pull Request** để implement storage upload system không? 🚀

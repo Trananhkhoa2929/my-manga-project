@@ -10,6 +10,9 @@
 !.yarn/releases
 !.yarn/versions
 
+# Chặn bộ kit agent
+.agent
+
 # testing
 /coverage
 

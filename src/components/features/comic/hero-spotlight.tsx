@@ -8,6 +8,7 @@ import { api } from "@shared/api";
 
 interface FeaturedManga {
     id: string;
+    slug: string;
     title: string;
     description: string;
     coverImage: string;
@@ -18,6 +19,7 @@ interface FeaturedManga {
     genres: string[];
     isNew?: boolean;
     isHot?: boolean;
+    firstChapterSlug?: string;
 }
 
 export function HeroSpotlight() {
@@ -32,6 +34,7 @@ export function HeroSpotlight() {
                 const response = await api.get<{ data: any[] }>('/comics?sort=views&limit=5');
                 const data = response.data.data.map((comic: any) => ({
                     id: comic.id,
+                    slug: comic.slug,
                     title: comic.title,
                     description: comic.description || 'Khám phá câu chuyện hấp dẫn này ngay!',
                     coverImage: comic.thumbnail,
@@ -42,6 +45,10 @@ export function HeroSpotlight() {
                     genres: comic.genres?.map((g: any) => g.name) || [],
                     isHot: (comic.totalViews || 0) > 10000,
                     isNew: new Date(comic.lastUpdated).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000,
+                    // Get first chapter slug (latestChapters is sorted by number desc, so last item is chapter 1)
+                    firstChapterSlug: comic.latestChapters?.length > 0
+                        ? comic.latestChapters[comic.latestChapters.length - 1]?.slug
+                        : undefined,
                 }));
                 setFeaturedManga(data);
             } catch (error) {
@@ -202,14 +209,16 @@ export function HeroSpotlight() {
                         {/* CTA Buttons */}
                         <div className="flex flex-col items-center gap-4 sm:flex-row lg:justify-start">
                             <Link
-                                href={`/truyen/${currentManga.id}`}
+                                href={currentManga.firstChapterSlug
+                                    ? `/truyen/${currentManga.slug}/chap/${currentManga.firstChapterSlug}`
+                                    : `/truyen/${currentManga.slug}`}
                                 className="group flex items-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 px-8 py-4 font-bold text-white shadow-lg shadow-purple-500/25 transition-all hover:shadow-xl hover:shadow-purple-500/40"
                             >
                                 <span>Đọc ngay</span>
                                 <ChevronRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
                             </Link>
                             <Link
-                                href={`/truyen/${currentManga.id}`}
+                                href={`/truyen/${currentManga.slug}`}
                                 className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-8 py-4 font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20"
                             >
                                 <BookOpen className="h-5 w-5" />

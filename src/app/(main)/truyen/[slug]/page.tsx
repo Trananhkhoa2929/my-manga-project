@@ -78,6 +78,10 @@ export default async function ComicDetailPage({ params }: Props) {
     views: 0, // TODO: Fetch from ChapterStats if needed
   }));
 
+  // Chapters are sorted DESC, so first chapter is at the end, latest is at the start
+  const firstChapter = chapterList.length > 0 ? chapterList[chapterList.length - 1] : null;
+  const latestChapter = chapterList.length > 0 ? chapterList[0] : null;
+
   return (
     <div>
       {/* Hero Section with Glassmorphism */}
@@ -157,18 +161,22 @@ export default async function ComicDetailPage({ params }: Props) {
 
               {/* Action Buttons */}
               <div className="mt-6 flex flex-wrap items-center justify-center gap-3 md:justify-start">
-                <Link href={`/truyen/${comic.slug}/chap/chap-1`}>
-                  <Button variant="accent" size="lg">
-                    <BookOpen className="mr-2 h-5 w-5" />
-                    Đọc từ đầu
-                  </Button>
-                </Link>
-                <Link href={`/truyen/${comic.slug}/chap/${comic.latestChapters[0]?.slug}`}>
-                  <Button variant="secondary" size="lg">
-                    <Clock className="mr-2 h-5 w-5" />
-                    Đọc mới nhất
-                  </Button>
-                </Link>
+                {firstChapter && (
+                  <Link href={`/truyen/${comic.slug}/chap/${firstChapter.slug}`}>
+                    <Button variant="accent" size="lg">
+                      <BookOpen className="mr-2 h-5 w-5" />
+                      Đọc từ đầu
+                    </Button>
+                  </Link>
+                )}
+                {latestChapter && (
+                  <Link href={`/truyen/${comic.slug}/chap/${latestChapter.slug}`}>
+                    <Button variant="secondary" size="lg">
+                      <Clock className="mr-2 h-5 w-5" />
+                      Đọc mới nhất
+                    </Button>
+                  </Link>
+                )}
                 <Button variant="outline" size="lg">
                   <Heart className="mr-2 h-5 w-5" />
                   Theo dõi
