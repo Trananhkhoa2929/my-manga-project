@@ -200,12 +200,16 @@ export function Navbar() {
           </Button>
 
           {/* Login */}
-          <Button variant="default" size="sm" className="hidden sm:flex">
-            Đăng nhập
-          </Button>
-          <Button variant="ghost" size="icon" className="sm:hidden">
-            <User className="h-5 w-5" />
-          </Button>
+          <Link href="/login">
+            <Button variant="default" size="sm" className="hidden sm:flex">
+              Đăng nhập
+            </Button>
+          </Link>
+          <Link href="/login">
+            <Button variant="ghost" size="icon" className="sm:hidden">
+              <User className="h-5 w-5" />
+            </Button>
+          </Link>
         </div>
       </div>
 
