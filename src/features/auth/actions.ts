@@ -43,7 +43,6 @@ export async function loginAction(values: z.infer<typeof LoginSchema>) {
             password,
             redirectTo: "/",
         });
-        return { success: "Logged in successfully!" }; // Never reached due to redirect
     } catch (error) {
         if (error instanceof AuthError) {
             switch (error.type) {
@@ -53,9 +52,11 @@ export async function loginAction(values: z.infer<typeof LoginSchema>) {
                     return { error: "Đã xảy ra lỗi. Vui lòng thử lại!" };
             }
         }
-        // Let redirect errors propagate (NEXT_REDIRECT)
+        // Re-throw redirect errors (NextAuth uses NEXT_REDIRECT for successful redirects)
         throw error;
     }
+    // If no redirect occurred (edge case), return success
+    return { success: "Đăng nhập thành công!" };
 }
 
 export async function registerAction(values: z.infer<typeof RegisterSchema>) {
@@ -106,19 +107,20 @@ export async function registerAction(values: z.infer<typeof RegisterSchema>) {
             password,
             redirectTo: "/"
         });
-        return { success: "Registered successfully!" }; // Never reached due to redirect
     } catch (error) {
         if (error instanceof AuthError) {
             switch (error.type) {
                 case "CredentialsSignin":
-                    return { error: "Invalid credentials after registration!" };
+                    return { error: "Không thể đăng nhập sau khi đăng ký!" };
                 default:
-                    return { error: "Failed to login after registration!" };
+                    return { error: "Đăng ký thành công nhưng không thể tự động đăng nhập!" };
             }
         }
-        // NextAuth throws NEXT_REDIRECT on success - let it propagate
+        // Re-throw redirect errors (NextAuth uses NEXT_REDIRECT for successful redirects)
         throw error;
     }
+
+    return { success: "Đăng ký thành công!" };
 }
 
 export async function socialLogin(provider: "google") {
