@@ -43,20 +43,19 @@ export async function loginAction(values: z.infer<typeof LoginSchema>) {
             password,
             redirectTo: "/",
         });
+        return { success: "Logged in successfully!" }; // Never reached due to redirect
     } catch (error) {
         if (error instanceof AuthError) {
             switch (error.type) {
                 case "CredentialsSignin":
-                    return { error: "Invalid credentials!" };
+                    return { error: "Email hoặc mật khẩu không chính xác!" };
                 default:
-                    return { error: "Something went wrong!" };
+                    return { error: "Đã xảy ra lỗi. Vui lòng thử lại!" };
             }
         }
-        // Re-throw redirect errors (NextAuth uses NEXT_REDIRECT for successful redirects)
+        // Let redirect errors propagate (NEXT_REDIRECT)
         throw error;
     }
-    // If no redirect occurred (edge case), return success
-    return { success: "Logged in!" };
 }
 
 export async function registerAction(values: z.infer<typeof RegisterSchema>) {
@@ -100,23 +99,26 @@ export async function registerAction(values: z.infer<typeof RegisterSchema>) {
         }
     });
 
-    // Auto login after register? Or redirect to login?
-    // Let's redirect to login for now or auto login.
-    // To auto login we have to call signIn.
+    // Auto login after register
     try {
         await signIn("credentials", {
             email,
             password,
             redirectTo: "/"
         });
+        return { success: "Registered successfully!" }; // Never reached due to redirect
     } catch (error) {
         if (error instanceof AuthError) {
-            throw error; // Let NextAuth handle redirect throw
+            switch (error.type) {
+                case "CredentialsSignin":
+                    return { error: "Invalid credentials after registration!" };
+                default:
+                    return { error: "Failed to login after registration!" };
+            }
         }
-        // If sign in fails but register created, redirect manually?
+        // NextAuth throws NEXT_REDIRECT on success - let it propagate
+        throw error;
     }
-
-    return { success: "User created!" };
 }
 
 export async function socialLogin(provider: "google") {

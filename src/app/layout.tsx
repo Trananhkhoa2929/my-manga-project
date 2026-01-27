@@ -8,6 +8,10 @@ const inter = Inter({ subsets: ["latin", "vietnamese"] });
 export const metadata: Metadata = {
   title: "MangaHub - Đọc truyện tranh online",
   description: "Đọc truyện tranh online miễn phí, cập nhật nhanh nhất.  Manga, Manhwa, Manhua đủ thể loại.",
+  icons: {
+    icon: '/favicon.ico',
+    apple: '/apple-icon.png',
+  },
 };
 
 export default function RootLayout({

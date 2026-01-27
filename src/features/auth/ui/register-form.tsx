@@ -5,11 +5,12 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { RegisterSchema, RegisterInput } from '../schemas';
 import { registerAction } from '../actions';
-import { Button, Input, Card, CardHeader, CardTitle, CardContent, CardFooter } from '@shared/ui';
+import { Button, Input, Card, CardHeader, CardTitle, CardContent, CardFooter, useToast } from '@shared/ui';
 import Link from 'next/link';
 
 export function RegisterForm() {
     const [isPending, startTransition] = useTransition();
+    const { error: toastError, success: toastSuccess } = useToast();
     const { register, handleSubmit, formState: { errors } } = useForm<RegisterInput>({
         resolver: zodResolver(RegisterSchema),
         defaultValues: {
@@ -23,7 +24,9 @@ export function RegisterForm() {
         startTransition(() => {
             registerAction(data).then((res) => {
                 if (res?.error) {
-                    console.error(res.error);
+                    toastError(res.error);
+                } else if (res?.success) {
+                    toastSuccess(res.success);
                 }
             });
         });
