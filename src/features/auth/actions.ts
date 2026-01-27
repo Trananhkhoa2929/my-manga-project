@@ -32,7 +32,7 @@ export async function loginAction(values: z.infer<typeof LoginSchema>) {
     const validatedFields = LoginSchema.safeParse(values);
 
     if (!validatedFields.success) {
-        return { error: "Invalid fields!" };
+        return { error: "Dữ liệu không hợp lệ!" };
     }
 
     const { email, password } = validatedFields.data;
@@ -63,7 +63,7 @@ export async function registerAction(values: z.infer<typeof RegisterSchema>) {
     const validatedFields = RegisterSchema.safeParse(values);
 
     if (!validatedFields.success) {
-        return { error: "Invalid fields!" };
+        return { error: "Dữ liệu không hợp lệ!" };
     }
 
     const { email, password, username } = validatedFields.data;
@@ -74,7 +74,7 @@ export async function registerAction(values: z.infer<typeof RegisterSchema>) {
     });
 
     if (existingUser) {
-        return { error: "Email already in use!" };
+        return { error: "Email đã được sử dụng!" };
     }
 
     const existingUsername = await db.user.findUnique({
@@ -82,7 +82,7 @@ export async function registerAction(values: z.infer<typeof RegisterSchema>) {
     });
 
     if (existingUsername) {
-        return { error: "Username already taken!" };
+        return { error: "Tên người dùng đã được sử dụng!" };
     }
 
     await db.user.create({
