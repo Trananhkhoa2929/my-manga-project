@@ -2,6 +2,9 @@ import { auth, signOut } from '@shared/config/auth';
 import { db } from '@shared/lib';
 import { Button, Card, CardHeader, CardTitle, CardContent } from '@shared/ui';
 import { redirect } from 'next/navigation';
+import { ProfileActions } from '@features/profile/ui/profile-actions';
+import { FollowedComicsList } from '@features/profile/ui/followed-comics-list';
+import { getFollowedComics } from '@features/profile/actions';
 
 export default async function ProfilePage() {
     const session = await auth();
@@ -32,6 +35,9 @@ export default async function ProfilePage() {
 
     if (!user) return <div>User not found</div>;
 
+    // Fetch followed comics
+    const { data: followedComics } = await getFollowedComics();
+
     return (
         <div className="container mx-auto py-8 px-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -51,6 +57,25 @@ export default async function ProfilePage() {
                             </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
+                            {/* Bio */}
+                            {user.profile?.bio && (
+                                <p className="text-sm text-text-secondary text-center">
+                                    {user.profile.bio}
+                                </p>
+                            )}
+
+                            {/* Website */}
+                            {user.profile?.website && (
+                                <a
+                                    href={user.profile.website}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block text-sm text-brand-primary hover:underline text-center"
+                                >
+                                    {user.profile.website}
+                                </a>
+                            )}
+
                             <div className="grid grid-cols-2 text-center text-sm">
                                 <div>
                                     <div className="font-bold text-lg">{user.stats?.followersCount || 0}</div>
@@ -61,6 +86,13 @@ export default async function ProfilePage() {
                                     <div className="text-text-secondary">Following</div>
                                 </div>
                             </div>
+
+                            {/* Edit Profile Button */}
+                            <ProfileActions profile={{
+                                displayName: user.profile?.displayName,
+                                bio: user.profile?.bio,
+                                website: user.profile?.website,
+                            }} />
 
                             <form action={async () => {
                                 'use server';
@@ -89,6 +121,9 @@ export default async function ProfilePage() {
                             <div className="text-xl font-bold text-blue-500">{Number(user.stats?.totalViews || 0)}</div>
                         </Card>
                     </div>
+
+                    {/* Followed Comics */}
+                    <FollowedComicsList comics={followedComics || []} />
 
                     {/* Reading History */}
                     <Card>

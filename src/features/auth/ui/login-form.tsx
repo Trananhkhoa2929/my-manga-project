@@ -1,16 +1,19 @@
 'use client';
 
-import { useTransition } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { useRouter } from 'next/navigation';
+import { signIn } from 'next-auth/react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { LoginSchema, LoginInput } from '../schemas';
-import { loginAction, socialLogin } from '../actions';
+import { socialLogin } from '../actions';
 import { Button, Input, Card, CardHeader, CardTitle, CardContent, CardFooter, useToast } from '@shared/ui';
 import Link from 'next/link';
 
 export function LoginForm() {
-    const [isPending, startTransition] = useTransition();
-    const { error: toastError } = useToast();
+    const router = useRouter();
+    const [isPending, setIsPending] = useState(false);
+    const { error: toastError, success: toastSuccess } = useToast();
     const { register, handleSubmit, formState: { errors } } = useForm<LoginInput>({
         resolver: zodResolver(LoginSchema),
         defaultValues: {
@@ -19,14 +22,27 @@ export function LoginForm() {
         },
     });
 
-    const onSubmit = (data: LoginInput) => {
-        startTransition(() => {
-            loginAction(data).then((res) => {
-                if (res?.error) {
-                    toastError(res.error);
-                }
+    const onSubmit = async (data: LoginInput) => {
+        setIsPending(true);
+        try {
+            const result = await signIn('credentials', {
+                email: data.email,
+                password: data.password,
+                redirect: false,
             });
-        });
+
+            if (result?.error) {
+                toastError('Email hoặc mật khẩu không chính xác!');
+            } else if (result?.ok) {
+                toastSuccess('Đăng nhập thành công!');
+                router.push('/');
+                router.refresh();
+            }
+        } catch {
+            toastError('Đã xảy ra lỗi. Vui lòng thử lại!');
+        } finally {
+            setIsPending(false);
+        }
     };
 
     return (
@@ -52,6 +68,11 @@ export function LoginForm() {
                         {...register('password')}
                         disabled={isPending}
                     />
+                    <div className="flex justify-end">
+                        <Link href="/forgot-password" className="text-sm text-brand-primary hover:underline">
+                            Quên mật khẩu?
+                        </Link>
+                    </div>
                     <Button type="submit" className="w-full" disabled={isPending}>
                         {isPending ? 'Đang xử lý...' : 'Đăng nhập'}
                     </Button>

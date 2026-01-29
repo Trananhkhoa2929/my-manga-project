@@ -2,6 +2,7 @@
 
 import { useTransition } from 'react';
 import { useForm } from 'react-hook-form';
+import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { RegisterSchema, RegisterInput } from '../schemas';
 import { registerAction } from '../actions';
@@ -9,6 +10,7 @@ import { Button, Input, Card, CardHeader, CardTitle, CardContent, CardFooter, us
 import Link from 'next/link';
 
 export function RegisterForm() {
+    const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const { error: toastError, success: toastSuccess } = useToast();
     const { register, handleSubmit, formState: { errors } } = useForm<RegisterInput>({
@@ -27,6 +29,10 @@ export function RegisterForm() {
                     toastError(res.error);
                 } else if (res?.success) {
                     toastSuccess(res.success);
+                    // Redirect to login after 1.5 seconds
+                    setTimeout(() => {
+                        router.push('/login');
+                    }, 1500);
                 }
             });
         });

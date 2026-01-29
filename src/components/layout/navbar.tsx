@@ -2,9 +2,10 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { useSession, signOut } from "next-auth/react";
 import {
   Search, Menu, X, History, Moon, Sun, User, Bell, ChevronDown,
-  Users, FolderOpen, Edit3, Sparkles
+  Users, FolderOpen, Edit3, Sparkles, LogOut, Settings
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,11 +13,17 @@ import { NAV_LINKS, GENRES, COMMUNITY_LINKS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 export function Navbar() {
+  const { data: session, status } = useSession();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isGenreOpen, setIsGenreOpen] = useState(false);
   const [isCommunityOpen, setIsCommunityOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isDark, setIsDark] = useState(true);
+
+  const handleLogout = async () => {
+    await signOut({ callbackUrl: "/" });
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -199,17 +206,98 @@ export function Navbar() {
             <Bell className="h-5 w-5" />
           </Button>
 
-          {/* Login */}
-          <Link href="/login">
-            <Button variant="default" size="sm" className="hidden sm:flex">
-              Đăng nhập
-            </Button>
-          </Link>
-          <Link href="/login">
-            <Button variant="ghost" size="icon" className="sm:hidden">
-              <User className="h-5 w-5" />
-            </Button>
-          </Link>
+          {/* User Auth Section */}
+          {status === "loading" ? (
+            <div className="h-8 w-8 animate-pulse rounded-full bg-background-surface2" />
+          ) : session?.user ? (
+            /* User is logged in - show avatar and dropdown */
+            <div className="relative">
+              <button
+                onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                className="flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-background-surface1"
+              >
+                <img
+                  src={session.user.image || `https://ui-avatars.com/api/?name=${session.user.name || 'U'}&background=random`}
+                  alt="Avatar"
+                  className="h-8 w-8 rounded-full border-2 border-purple-500/50"
+                />
+                <span className="hidden text-sm font-medium text-text-primary sm:block">
+                  {session.user.name || session.user.email?.split('@')[0]}
+                </span>
+                <ChevronDown className={cn("h-4 w-4 text-text-muted transition-transform", isUserMenuOpen && "rotate-180")} />
+              </button>
+
+              {/* User Dropdown Menu */}
+              {isUserMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setIsUserMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-border bg-background-surface1 p-2 shadow-xl">
+                    <div className="border-b border-border px-3 py-2 mb-2">
+                      <p className="font-semibold text-text-primary">{session.user.name || 'User'}</p>
+                      <p className="text-xs text-text-muted">{session.user.email}</p>
+                    </div>
+
+                    <Link
+                      href="/profile"
+                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-text-secondary transition-colors hover:bg-background-surface2 hover:text-text-primary"
+                      onClick={() => setIsUserMenuOpen(false)}
+                    >
+                      <User className="h-4 w-4" />
+                      Hồ sơ cá nhân
+                    </Link>
+
+                    <Link
+                      href="/lich-su"
+                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-text-secondary transition-colors hover:bg-background-surface2 hover:text-text-primary"
+                      onClick={() => setIsUserMenuOpen(false)}
+                    >
+                      <History className="h-4 w-4" />
+                      Lịch sử đọc
+                    </Link>
+
+                    <Link
+                      href="/settings"
+                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-text-secondary transition-colors hover:bg-background-surface2 hover:text-text-primary"
+                      onClick={() => setIsUserMenuOpen(false)}
+                    >
+                      <Settings className="h-4 w-4" />
+                      Cài đặt
+                    </Link>
+
+                    <div className="border-t border-border mt-2 pt-2">
+                      <button
+                        onClick={() => {
+                          setIsUserMenuOpen(false);
+                          handleLogout();
+                        }}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-400 transition-colors hover:bg-red-500/10"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        Đăng xuất
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            /* User is not logged in - show login buttons */
+            <>
+              <Link href="/login">
+                <Button variant="default" size="sm" className="hidden sm:flex">
+                  Đăng nhập
+                </Button>
+              </Link>
+              <Link href="/login">
+                <Button variant="ghost" size="icon" className="sm:hidden">
+                  <User className="h-5 w-5" />
+                </Button>
+              </Link>
+            </>
+          )}
         </div>
       </div>
 
