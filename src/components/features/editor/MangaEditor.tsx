@@ -76,6 +76,7 @@ interface MangaEditorProps {
     imageUrl: string
     initialCanvasData?: CanvasData
     onSave?: (canvasData: CanvasData) => void
+    onStateChange?: (canvasData: CanvasData) => void  // Called on every state change for undo/redo
     width?: number
     height?: number
 }
@@ -166,6 +167,7 @@ export const MangaEditor: React.FC<MangaEditorProps> = ({
     imageUrl,
     initialCanvasData,
     onSave,
+    onStateChange,
     width: containerWidth,
     height: containerHeight,
 }) => {
@@ -197,10 +199,49 @@ export const MangaEditor: React.FC<MangaEditorProps> = ({
         initialCanvasData?.shapes || []
     )
 
+    // Track if we should skip the next onStateChange call (for external updates like undo)
+    const isExternalUpdateRef = useRef(false)
+
+    // Sync with initialCanvasData when it changes from parent (e.g., undo/redo)
+    useEffect(() => {
+        if (initialCanvasData) {
+            isExternalUpdateRef.current = true  // Mark this as external update
+            setBrushStrokes(initialCanvasData.brushStrokes || [])
+            setTextElements(initialCanvasData.textElements || [])
+            setShapes(initialCanvasData.shapes || [])
+        }
+    }, [initialCanvasData])
+
     // Tool settings
     const [brushColor, setBrushColor] = useState('#FFFFFF')
     const [brushSize, setBrushSize] = useState(20)
     const [isVerticalText, setIsVerticalText] = useState(false)
+
+    // Helper function to get canvas data
+    const getCanvasData = useCallback((): CanvasData => ({
+        version: '1.0',
+        layers: {
+            background: { visible: true },
+            drawing: { visible: true, strokes: brushStrokes },
+            shapes: { visible: true, items: shapes },
+            text: { visible: true, items: textElements },
+        },
+        textElements,
+        brushStrokes,
+        shapes,
+    }), [textElements, brushStrokes, shapes])
+
+    // Emit state changes to parent for undo/redo tracking
+    useEffect(() => {
+        // Skip if this is an external update (e.g., from undo/redo)
+        if (isExternalUpdateRef.current) {
+            isExternalUpdateRef.current = false  // Reset the flag
+            return
+        }
+        if (onStateChange) {
+            onStateChange(getCanvasData())
+        }
+    }, [brushStrokes, textElements, shapes, onStateChange, getCanvasData])
 
     // ===========================================
     // LOAD IMAGE
@@ -401,23 +442,8 @@ export const MangaEditor: React.FC<MangaEditorProps> = ({
     }, [selectedId])
 
     // ===========================================
-    // SERIALIZE CANVAS DATA
+    // SAVE HANDLER
     // ===========================================
-    const getCanvasData = useCallback((): CanvasData => {
-        return {
-            version: '1.0',
-            layers: {
-                background: { visible: true },
-                drawing: { visible: true, strokes: brushStrokes },
-                shapes: { visible: true, items: shapes },
-                text: { visible: true, items: textElements },
-            },
-            textElements,
-            brushStrokes,
-            shapes,
-        }
-    }, [textElements, brushStrokes, shapes])
-
     const handleSave = useCallback(() => {
         if (onSave) {
             onSave(getCanvasData())

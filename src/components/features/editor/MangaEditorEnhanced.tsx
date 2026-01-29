@@ -202,73 +202,81 @@ export function MangaEditorEnhanced({
     }
 
     return (
-        <div className="relative">
-            {/* Enhanced Toolbar */}
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-4 py-2 bg-gray-800/95 rounded-xl backdrop-blur-sm border border-gray-700 shadow-xl">
-                {/* Undo */}
-                <button
-                    onClick={undo}
-                    disabled={!canUndo}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors ${canUndo
+        <div className="flex flex-col">
+            {/* Enhanced Toolbar - Fixed at top of editor section */}
+            <div className="flex justify-center mb-4">
+                <div className="flex items-center gap-2 px-4 py-2 bg-gray-800/95 rounded-xl backdrop-blur-sm border border-gray-700 shadow-xl">
+                    {/* Undo */}
+                    <button
+                        onClick={undo}
+                        disabled={!canUndo}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors ${canUndo
                             ? 'hover:bg-gray-700 text-white'
                             : 'text-gray-600 cursor-not-allowed'
-                        }`}
-                    title="Undo (Ctrl+Z)"
-                >
-                    <Undo2 className="w-4 h-4" />
-                    <span className="text-sm hidden sm:inline">Undo</span>
-                    {historyLength > 0 && (
-                        <span className="text-xs bg-gray-700 px-1.5 rounded">{historyLength}</span>
-                    )}
-                </button>
+                            }`}
+                        title="Undo (Ctrl+Z)"
+                    >
+                        <Undo2 className="w-4 h-4" />
+                        <span className="text-sm">Undo</span>
+                        {historyLength > 0 && (
+                            <span className="text-xs bg-gray-700 px-1.5 rounded">{historyLength}</span>
+                        )}
+                    </button>
 
-                {/* Redo */}
-                <button
-                    onClick={redo}
-                    disabled={!canRedo}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors ${canRedo
+                    {/* Redo */}
+                    <button
+                        onClick={redo}
+                        disabled={!canRedo}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors ${canRedo
                             ? 'hover:bg-gray-700 text-white'
                             : 'text-gray-600 cursor-not-allowed'
-                        }`}
-                    title="Redo (Ctrl+Shift+Z)"
-                >
-                    <Redo2 className="w-4 h-4" />
-                    <span className="text-sm hidden sm:inline">Redo</span>
-                </button>
+                            }`}
+                        title="Redo (Ctrl+Shift+Z)"
+                    >
+                        <Redo2 className="w-4 h-4" />
+                        <span className="text-sm">Redo</span>
+                    </button>
 
-                <div className="w-px h-6 bg-gray-600" />
+                    <div className="w-px h-6 bg-gray-600" />
 
-                {/* Save Status */}
-                <div className={`flex items-center gap-1.5 px-3 py-1.5 text-sm ${getSaveStatusColor(saveState.status)}`}>
-                    {saveState.status === 'saving' ? (
-                        <Clock className="w-4 h-4 animate-spin" />
-                    ) : (
-                        <Save className="w-4 h-4" />
-                    )}
-                    <span className="hidden sm:inline">{getSaveStatusText(saveState.status) || 'Auto-save'}</span>
+                    {/* Save Status */}
+                    <button
+                        onClick={() => triggerSave()}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors hover:bg-gray-700 ${getSaveStatusColor(saveState.status)}`}
+                        title="Save (Ctrl+S)"
+                    >
+                        {saveState.status === 'saving' ? (
+                            <Clock className="w-4 h-4 animate-spin" />
+                        ) : (
+                            <Save className="w-4 h-4" />
+                        )}
+                        <span className="text-sm">{getSaveStatusText(saveState.status) || 'Save'}</span>
+                    </button>
+
+                    <div className="w-px h-6 bg-gray-600" />
+
+                    {/* Export */}
+                    <button
+                        onClick={() => setShowExportModal(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-gray-700 text-white transition-colors"
+                        title="Export"
+                    >
+                        <Download className="w-4 h-4" />
+                        <span className="text-sm">Export</span>
+                    </button>
                 </div>
-
-                <div className="w-px h-6 bg-gray-600" />
-
-                {/* Export */}
-                <button
-                    onClick={() => setShowExportModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-gray-700 text-white transition-colors"
-                    title="Export"
-                >
-                    <Download className="w-4 h-4" />
-                    <span className="text-sm hidden sm:inline">Export</span>
-                </button>
             </div>
 
             {/* Editor */}
-            <MangaEditor
-                imageUrl={imageUrl}
-                initialCanvasData={canvasData}
-                onSave={handleEditorSave}
-                width={width}
-                height={height}
-            />
+            <div className="relative">
+                <MangaEditor
+                    imageUrl={imageUrl}
+                    initialCanvasData={canvasData}
+                    onSave={handleEditorSave}
+                    width={width}
+                    height={height}
+                />
+            </div>
 
             {/* Export Modal */}
             <ExportModal

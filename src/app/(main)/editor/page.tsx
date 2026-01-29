@@ -2,20 +2,24 @@
 
 // ===========================================
 // EDITOR DEMO PAGE
-// Test the MangaEditor component
+// Test the MangaEditor component with enhanced features
 // ===========================================
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import dynamic from 'next/dynamic'
-import type { CanvasData } from '@/components/features/editor/MangaEditor'
-import { ArrowLeft, Upload, Sparkles } from 'lucide-react'
+import { ArrowLeft, Upload, Sparkles, Undo2, Redo2, Save, Download, Clock } from 'lucide-react'
 import Link from 'next/link'
+import { useHistory } from '@/features/editor/hooks/use-history'
+import { useAutoSave, getSaveStatusText, getSaveStatusColor } from '@/features/editor/hooks/use-auto-save'
 
 // Dynamic import to avoid SSR issues with Konva
 const MangaEditor = dynamic(
     () => import('@/components/features/editor/MangaEditor').then(mod => mod.MangaEditor),
     { ssr: false, loading: () => <EditorSkeleton /> }
 )
+
+// Import CanvasData type from MangaEditor
+import type { CanvasData } from '@/components/features/editor/MangaEditor'
 
 function EditorSkeleton() {
     return (
@@ -25,22 +29,116 @@ function EditorSkeleton() {
     )
 }
 
+const defaultCanvasData: CanvasData = {
+    version: '1.0',
+    layers: {
+        background: { visible: true },
+        drawing: { visible: true, strokes: [] },
+        shapes: { visible: true, items: [] },
+        text: { visible: true, items: [] },
+    },
+    textElements: [],
+    brushStrokes: [],
+    shapes: [],
+};
+
 // Sample manga page for testing
 const SAMPLE_IMAGES = [
-    'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=800&q=80', // Anime style
-    'https://images.unsplash.com/photo-1613376023733-0a73315d9b06?w=800&q=80', // Manga art
-    'https://images.unsplash.com/photo-1560972550-aba3456b5564?w=800&q=80', // Comic style
+    'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=800&q=80',
+    'https://images.unsplash.com/photo-1613376023733-0a73315d9b06?w=800&q=80',
+    'https://images.unsplash.com/photo-1560972550-aba3456b5564?w=800&q=80',
 ]
 
 export default function EditorDemoPage() {
     const [imageUrl, setImageUrl] = useState<string | null>(null)
-    const [savedData, setSavedData] = useState<CanvasData | null>(null)
+    const [pageId] = useState(() => `page-${Date.now()}`)
+    const [isMounted, setIsMounted] = useState(false)
 
-    const handleSave = (canvasData: CanvasData) => {
-        setSavedData(canvasData)
-        console.log('Canvas data saved:', canvasData)
-        // In production, this would save to the database
-    }
+    // History hook for undo/redo
+    const {
+        state: canvasData,
+        setState: setCanvasData,
+        undo,
+        redo,
+        canUndo,
+        canRedo,
+        historyLength,
+    } = useHistory<CanvasData>(defaultCanvasData, { maxHistory: 50 });
+
+    // Auto-save hook
+    const {
+        saveState,
+        save: triggerSave,
+        recover,
+        markChanged,
+    } = useAutoSave<CanvasData>(canvasData, {
+        storageKey: `manga-editor-${pageId}`,
+        interval: 30000,
+        debounceDelay: 2000,
+        enabled: true,
+    });
+
+    useEffect(() => {
+        setIsMounted(true);
+        // Check for recovery data
+        const recovered = recover();
+        if (recovered) {
+            const shouldRecover = window.confirm(
+                'Phát hiện dữ liệu chưa lưu từ phiên trước. Bạn có muốn khôi phục không?'
+            );
+            if (shouldRecover) {
+                setCanvasData(recovered);
+            }
+        }
+    }, []);
+
+    // Track if we're in the middle of undo/redo to skip recording
+    const skipNextHistoryRef = useRef(false)
+
+    // Handle state changes from editor - record to history
+    const handleStateChange = useCallback((data: CanvasData) => {
+        // Skip if this change was triggered by undo/redo
+        if (skipNextHistoryRef.current) {
+            skipNextHistoryRef.current = false
+            return
+        }
+        setCanvasData(data)
+        markChanged()
+    }, [setCanvasData, markChanged])
+
+    // Handle save from editor (explicit save button)
+    const handleEditorSave = useCallback((data: CanvasData) => {
+        console.log('Canvas data saved:', data);
+    }, []);
+
+    // Keyboard shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+                e.preventDefault();
+                skipNextHistoryRef.current = true  // Skip recording the state change
+                if (e.shiftKey) {
+                    redo();
+                } else {
+                    undo();
+                }
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+                e.preventDefault();
+                skipNextHistoryRef.current = true  // Skip recording the state change
+                redo();
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                triggerSave();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [undo, redo, triggerSave]);
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
@@ -71,12 +169,63 @@ export default function EditorDemoPage() {
                         </h1>
                     </div>
 
-                    {savedData && (
-                        <div className="flex items-center gap-2 text-green-400 text-sm">
-                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M20 6L9 17l-5-5" />
-                            </svg>
-                            <span>Saved! ({savedData.textElements.length} texts, {savedData.brushStrokes.length} strokes)</span>
+                    {/* Enhanced Toolbar - Always visible in header when editing */}
+                    {imageUrl && isMounted && (
+                        <div className="flex items-center gap-2 px-4 py-2 bg-gray-800/95 rounded-xl border border-gray-700">
+                            {/* Undo */}
+                            <button
+                                onClick={undo}
+                                disabled={!canUndo}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors ${canUndo ? 'hover:bg-gray-700 text-white' : 'text-gray-600 cursor-not-allowed'
+                                    }`}
+                                title="Undo (Ctrl+Z)"
+                            >
+                                <Undo2 className="w-4 h-4" />
+                                <span className="text-sm">Undo</span>
+                                {historyLength > 0 && (
+                                    <span className="text-xs bg-gray-700 px-1.5 rounded">{historyLength}</span>
+                                )}
+                            </button>
+
+                            {/* Redo */}
+                            <button
+                                onClick={redo}
+                                disabled={!canRedo}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors ${canRedo ? 'hover:bg-gray-700 text-white' : 'text-gray-600 cursor-not-allowed'
+                                    }`}
+                                title="Redo (Ctrl+Shift+Z)"
+                            >
+                                <Redo2 className="w-4 h-4" />
+                                <span className="text-sm">Redo</span>
+                            </button>
+
+                            <div className="w-px h-6 bg-gray-600" />
+
+                            {/* Save */}
+                            <button
+                                onClick={() => triggerSave()}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors hover:bg-gray-700 ${getSaveStatusColor(saveState.status)}`}
+                                title="Save (Ctrl+S)"
+                            >
+                                {saveState.status === 'saving' ? (
+                                    <Clock className="w-4 h-4 animate-spin" />
+                                ) : (
+                                    <Save className="w-4 h-4" />
+                                )}
+                                <span className="text-sm">{getSaveStatusText(saveState.status) || 'Save'}</span>
+                            </button>
+
+                            <div className="w-px h-6 bg-gray-600" />
+
+                            {/* Export */}
+                            <button
+                                onClick={() => alert('Export feature coming soon!')}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-gray-700 text-white transition-colors"
+                                title="Export"
+                            >
+                                <Download className="w-4 h-4" />
+                                <span className="text-sm">Export</span>
+                            </button>
                         </div>
                     )}
                 </div>
@@ -132,10 +281,10 @@ export default function EditorDemoPage() {
                         {/* Features */}
                         <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-6 w-full max-w-4xl">
                             {[
-                                { icon: '✏️', title: 'Text Tool', desc: 'Horizontal & Vertical' },
-                                { icon: '🖌️', title: 'Brush/Pen', desc: 'Clean artifacts' },
-                                { icon: '◻️', title: 'Shape Tools', desc: 'Cover complex areas' },
-                                { icon: '🔄', title: 'Transform', desc: 'Resize & rotate' },
+                                { icon: '↩️', title: 'Undo/Redo', desc: 'Ctrl+Z / Ctrl+Y' },
+                                { icon: '💾', title: 'Auto-Save', desc: 'Every 30 seconds' },
+                                { icon: '📥', title: 'Export', desc: 'PNG, JPG, WebP' },
+                                { icon: '🔄', title: 'Recovery', desc: 'Crash protection' },
                             ].map((feature, idx) => (
                                 <div key={idx} className="bg-gray-800/50 rounded-xl p-4 text-center">
                                     <div className="text-3xl mb-2">{feature.icon}</div>
@@ -166,8 +315,9 @@ export default function EditorDemoPage() {
 
                         <MangaEditor
                             imageUrl={imageUrl}
-                            initialCanvasData={savedData || undefined}
-                            onSave={handleSave}
+                            initialCanvasData={canvasData}
+                            onSave={handleEditorSave}
+                            onStateChange={handleStateChange}
                             width={1200}
                             height={800}
                         />
@@ -177,3 +327,5 @@ export default function EditorDemoPage() {
         </div>
     )
 }
+
+
